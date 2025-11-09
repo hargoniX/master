@@ -45,11 +45,6 @@
 
 = Introduction (1P) <sect_intro>
 
-// State of the art vs. contribution: You start by explaining the state of the art in
-// your field. Do not hesitate to use the term state of the art to make this
-// completely unambiguous for the reader. You then summarize your contribution.
-// Do not hesitate to write contribution to make this clear
-
 The growing pervasiveness and sophistication of modern computing systems has increased both their
 susceptibility to faults and the scale of damage such faults can cause. Ensuring that critical
 mistakes in software are identified before they lead to serious consequences is therefore a vital challenge.
