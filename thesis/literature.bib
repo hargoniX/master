@@ -193,3 +193,154 @@ series = {TACAS'07}
   month = dec,
   pages = {1–28}
 }
+
+@phdthesis{refute,
+  title        = {SAT-based Finite Model Generation for Higher-Order Logic},
+  author       = {Tjark Weber},
+  year         = 2008,
+  month        = {April},
+  school       = {Technische Universität München.},
+  type         = {PhD thesis}
+}
+
+@inbook{agdaquickcheck,
+  title = {Combining Testing and Proving in Dependent Type Theory},
+  ISBN = {9783540451303},
+  ISSN = {1611-3349},
+  url = {http://dx.doi.org/10.1007/10930755_12},
+  DOI = {10.1007/10930755_12},
+  booktitle = {Theorem Proving in Higher Order Logics},
+  publisher = {Springer Berlin Heidelberg},
+  author = {Dybjer,  Peter and Haiyan,  Qiao and Takeyama,  Makoto},
+  year = {2003},
+  pages = {188–203}
+}
+
+@article{haskellquickcheck,
+author = {Claessen, Koen and Hughes, John},
+title = {QuickCheck: a lightweight tool for random testing of Haskell programs},
+year = {2000},
+issue_date = {Sept. 2000},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {35},
+number = {9},
+issn = {0362-1340},
+url = {https://doi.org/10.1145/357766.351266},
+doi = {10.1145/357766.351266},
+abstract = {Quick Check is a tool which aids the Haskell programmer in formulating and testing properties of programs. Properties are described as Haskell functions, and can be automatically tested on random input, but it is also possible to define custom test data generators. We present a number of case studies, in which the tool was successfully used, and also point out some pitfalls to avoid. Random testing is especially suitable for functional programs because properties can be stated at a fine grain. When a function is built from separately tested components, then random testing suffices to obtain good coverage of the definition under test.},
+journal = {SIGPLAN Not.},
+month = sep,
+pages = {268–279},
+numpages = {12}
+}
+
+@article{pvsquickcheck,
+author = {Owre, Sam},
+year = {2006},
+month = {01},
+pages = {},
+title = {Random testing in PVS}
+}
+
+
+@InProceedings{acl2cex,
+author="Manolios, Panagiotis",
+editor="Blazy, Sandrine
+and Paulin-Mohring, Christine
+and Pichardie, David",
+title="Counterexample Generation Meets Interactive Theorem Proving: Current Results and Future Opportunities",
+booktitle="Interactive Theorem Proving",
+year="2013",
+publisher="Springer Berlin Heidelberg",
+address="Berlin, Heidelberg",
+pages="18--18",
+abstract="This tutorial will explore the integration of counterexample generation with interactive theorem proving, a capability that has long been on the wish list of users and developers of interactive theorem provers. While the generation of counterexamples is an undecidable problem, recent methods have shown that it is possible to generate counterexamples to conjectures for many interesting problems. This tutorial will review current counterexample generation technology and how it can be used to design, analyze, and reason about systems. The tutorial will include a demo using ACL2s, the ACL2 Sedan. During the tutorial, we will also discuss the pedagogical use of counterexample generation in ACL2s to help freshmen students learn about logic and program verification. Finally, we will discuss future research opportunities.",
+isbn="978-3-642-39634-2"
+}
+
+@article{quickchick-multirelations,
+author = {Prinz, Jacob and Lampropoulos, Leonidas},
+title = {Merging Inductive Relations},
+year = {2023},
+issue_date = {June 2023},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {7},
+number = {PLDI},
+url = {https://doi.org/10.1145/3591292},
+doi = {10.1145/3591292},
+abstract = {Inductive relations offer a powerful and expressive way of writing   program specifications while facilitating compositional reasoning.   Their widespread use by proof assistant users has made them a   particularly attractive target for proof engineering tools such as   QuickChick, a property-based testing tool for Coq which can   automatically derive generators for values satisfying an inductive   relation.   However, while such generators are generally efficient, there is   an infrequent yet seemingly inevitable situation where their   performance greatly degrades: when multiple inductive relations   constrain the same piece of data.    In this paper, we introduce an algorithm for merging two such   inductively defined properties that share an index. The algorithm   finds shared structure between the two relations, and creates a   single merged relation that is provably equivalent to the   conjunction of the two.   We demonstrate, through a series of case studies,   that the merged relations can improve the performance of automatic   generation by orders of magnitude, as well as simplify mechanized   proofs by getting rid of the need for nested induction and tedious   low-level book-keeping.},
+journal = {Proc. ACM Program. Lang.},
+month = jun,
+articleno = {178},
+numpages = {20},
+keywords = {QuickChick, inductive relations, merging}
+}
+
+@inbook{smtcoq,
+  title = {A Modular Integration of SAT/SMT Solvers to Coq through Proof Witnesses},
+  ISBN = {9783642253799},
+  ISSN = {1611-3349},
+  url = {http://dx.doi.org/10.1007/978-3-642-25379-9_12},
+  DOI = {10.1007/978-3-642-25379-9_12},
+  booktitle = {Certified Programs and Proofs},
+  publisher = {Springer Berlin Heidelberg},
+  author = {Armand,  Michael and Faure,  Germain and Grégoire,  Benjamin and Keller,  Chantal and Théry,  Laurent and Werner,  Benjamin},
+  year = {2011},
+  pages = {135–150}
+}
+
+@inbook{leansmt,
+  title = {lean-smt: An SMT Tactic for Discharging Proof Goals in Lean},
+  ISBN = {9783031986826},
+  ISSN = {1611-3349},
+  url = {http://dx.doi.org/10.1007/978-3-031-98682-6_11},
+  DOI = {10.1007/978-3-031-98682-6_11},
+  booktitle = {Computer Aided Verification},
+  publisher = {Springer Nature Switzerland},
+  author = {Mohamed,  Abdalrhman and Mascarenhas,  Tomaz and Khan,  Harun and Barbosa,  Haniel and Reynolds,  Andrew and Qian,  Yicheng and Tinelli,  Cesare and Barrett,  Clark},
+  year = {2025},
+  pages = {197–212}
+}
+
+@article{bv_decide,
+author = {B\"{o}ving, Henrik and Bhat, Siddharth and Cicolini, Luisa and Keizer, Alex and Frenot, L\'{e}on and Mohamed, Abdalrhman and Stefanesco, L\'{e}o and Khan, Harun and Clune, Joshua and Barrett, Clark and Grosser, Tobias},
+title = {Interactive Bitvector Reasoning using Verified Bit-Blasting},
+year = {2025},
+issue_date = {October 2025},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {9},
+number = {OOPSLA2},
+url = {https://doi.org/10.1145/3763167},
+doi = {10.1145/3763167},
+abstract = {Bit-blasting SMT solvers enable efficient automatic reasoning about bitvectors, which are fundamental for the verification of compiler backends, cryptographic algorithms, hardware designs and other soft- or hardware tasks. Despite the clear demand for efficient bitvector reasoning infrastructure and the impressive advancements in state-of-the-art bit-blasting SMT solvers such as Bitwuzla, effective bitvector reasoning within interactive theorem provers (ITPs) remains a challenge, hindering their use for mechanized proofs. Incomplete bitvector libraries, unavailable or only partially integrated decision procedures, complex and hard-to-bitblast operations, and limited integration with the host language prevent the wide adoption of bitvector reasoning in proving contexts. We introduce bv_decide: the first end-to-end verified bitblaster designed for interactive bitvector reasoning in a dependently-typed ITP. Our verified bitblaster is scalable, comes with a complete end-to-end proof (trusting only the Lean compiler and kernel), and is available as a proof tactic that allows interactive reasoning right from within a programming language, in our case Lean. We use Lean’s Functional But In-Place (FBIP) paradigm to efficiently encode our core data structures (e.g., AIGs), demonstrating that fast execution of an SMT solver need not come at the expense of rigorous formalization. We enable dependable interactive verification of user-written-code by basing Lean’s C-Style standard dataypes UInt/SInt on our bitvector type, adding a lowering from enums and structs to bitvectors to enable transparent bit-blasting support for composed types, and by offering an interactive tactic that either solves a goal or provides a counter-example. Moreover, we present the design of Lean’s canonical bitvector library, which supports all operations (with reasoning principles) for the SMT-LIB 2.7 standard (including overflow modeling), is fast-to-execute, and offers a comprehensive API and automation for bit-width-independent reasoning. We thoroughly evaluate our bit-blaster on a comprehensive set of benchmarks, including the full SMT-LIB dataset, where bv_decide solves more theorems than the state-of-the-art in verified bit-blasting, CoqQFBV. We also verify over 7000 SMT statements extracted from LLVM, providing the largest mechanized verification of LLVM rewrites to date, to our knowledge. By making bit-blasting bitvector reasoning a polished, well-supported, and interactive feature of modern ITPs, we enable effective, dependable white-box reasoning for bitvector-level verification.},
+journal = {Proc. ACM Program. Lang.},
+month = oct,
+articleno = {389},
+numpages = {27},
+keywords = {Lean, bit-blasting, bitvector, decision procedure}
+}
+
+@misc{plausible,
+    title={Plausible},
+    author={The Lean Community},
+    booktitle={GitHub},
+    year={2024}
+}
+
+@article{boundex-coq,
+  title = {Tests and proofs for custom data generators},
+  volume = {30},
+  ISSN = {1433-299X},
+  url = {http://dx.doi.org/10.1007/s00165-018-0459-1},
+  DOI = {10.1007/s00165-018-0459-1},
+  number = {6},
+  journal = {Formal Aspects of Computing},
+  publisher = {Association for Computing Machinery (ACM)},
+  author = {Dubois,  Catherine and Giorgetti,  Alain},
+  year = {2018},
+  month = nov,
+  pages = {659–684}
+}

@@ -235,7 +235,7 @@
   // Main Matter
   counter(page).update(1)
   set page(numbering: "1", number-align: center)
-  set par(leading: 0.75em, justify: true, first-line-indent: 2em, spacing: 1.2em)
+  set par(leading: 0.75em, justify: true, spacing: 1.2em)
   body
 
   pagebreak(weak: true)

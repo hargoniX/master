@@ -49,7 +49,7 @@ The growing pervasiveness and sophistication of modern computing systems has inc
 susceptibility to faults and the scale of damage such faults can cause. Ensuring that critical
 mistakes in software are identified before they lead to serious consequences is therefore a vital challenge.
 An increasingly popular approach to tackling this challenge is the use of @ITP systems such as
-Lean @lean4, Isabelle (TODO: cite), and Rocq @rocq. However, developing correctness proofs
+Lean @lean4, Isabelle (TODO: what's the canonical Isabelle citation), and Rocq @rocq. However, developing correctness proofs
 in these systems at the same time as developing definitions and theorem statements can turn out to
 be quite frustrating. Often times definitions turn out to be subtly wrong or hypotheses in theorems
 need to be strengthened in order to make them provable. Counterexample-finding techniques can help
@@ -58,18 +58,17 @@ on unprovable goals.
 
 For this reason, a variety of counterexample-finding techniques have been incorporated into @ITP
 systems over the years. For example, Isabelle provides support for random testing,
-bounded exhaustive testing, narrowing, and finite model finding, as implemented in
+bounded exhaustive testing, narrowing, and finite model finding, implemented in
 Quickcheck @quickcheck and Nitpick @nitpick. In contrast, systems grounded in @DTT have
 predominantly relied on random testing with tools such as QuickChick @quickchick and Plausible
-#footnote[https://github.com/leanprover-community/plausible/]. Tools based on random testing
-attempt to synthesize a procedure that evaluates the theorem statement for specific input values.
-This procedure is then executed repeatedly with random inputs to search for counterexamples.
-While this technique is quite effective in general, it does have a crucial limitation: If the inputs
-to the theorems are constrained by complicated invariants, it can be quite difficult to generate
-candidates for evaluation that satisfy these preconditions. For such theorems, finite model finders
-like Nitpick shine. Nitpick reduces the original theorem to SAT and invokes a SAT solver to
-search for counterexamples. The SAT solver can then search for inputs with invariants more
-directly, rather than relying on random generation to eventually find them.
+@plausible. These tools attempt to synthesize a procedure that evaluates the theorem
+statement for specific input values. This procedure is then executed repeatedly with random inputs
+to search for counterexamples. While this technique is quite effective in general, it does have a
+crucial limitation: If the inputs to the theorems are constrained by complicated invariants, it can
+be quite difficult to generate candidates for evaluation that satisfy these preconditions.
+For such theorems, finite model finders like Nitpick shine. Nitpick reduces the original theorem to
+SAT and invokes a SAT solver to search for counterexamples. The SAT solver can then search for
+inputs with invariants more directly, rather than relying on random generation to eventually find them.
 
 In this thesis I describe the first finite model finding approach, integrated with a dependently
 typed theorem prover, namely Lean. The core contribution is the reduction of a practically relevant
@@ -82,7 +81,44 @@ in @sect_impl. Lastly, I present an evaluation of Chako on a few case studies in
 #pagebreak(weak: true)
 
 = Related Work (1-1.5P) <sect_related>
+Many counterexample-finding techniques have been integrated with @ITP systems before. These techniques
+can generally be located somewhere on a spectrum between concrete execution and fully symbolic
+reasoning.
 
+On the concrete end of the spectrum, the most widely deployed technique is the already mentioned
+random testing. Popularized by Haskell's QuickCheck @haskellquickcheck, many @ITP systems provide
+an implementation of random testing, such as Isabelle's Quickcheck @quickcheck, Agda's QuickCheck
+@agdaquickcheck, PVS @pvsquickcheck, ACL2 @acl2cex, Lean's Plausible @plausible, and Rocq's
+QuickChick @quickchick. The main strength of this approach is performance: Computers can generate and
+evaluate many candidates within a short time span. As previously explained, the main weakness
+is theorems with complex constraints on the input space that make it hard to generate valid inputs.
+In order to counteract this, Isabelle, ACL2, and Rocq @quickchick-multirelations
+implement techniques to derive generators for inputs that are constrained by certain kinds of
+inductive relations.
+
+Another concrete execution technique is bounded exhaustive testing, implemented as a
+QuickChick extension @boundex-coq and in Isabelle's Quickcheck. Bounded exhaustive testing
+generates and tests all possible inputs to a conjecture up to a certain bound (e.g. term size).
+Unlike random testing, this ensures that all potentially relevant inputs within the search
+space are actually tested. The main limitation is that we can only feasibly test up to a rather
+small bound so big counterexamples will usually be missed.
+
+A fundamental limitation of techniques that rely purely on concrete execution is the inability to
+refute propositions that are not executable. For example, to demonstrate that
+$forall n : NN, exists m : NN, n + m = m$ is false using concrete execution, the system would
+have to generate a value for $n$ and then try all possible values for $m$. Issues like this can be
+addressed with techniques that make use of symbolic reasoning. Between the fully symbolic and fully
+concrete ends of the spectrum, Isabelle's Quickcheck also implements a narrowing-based approach. The idea
+of narrowing is to symbolically evaluate the proposition with partially instantiated terms first
+and then refine them until a counterexample can be found.
+
+On the far symbolic end of the spectrum, we can find techniques that perform reductions to SAT or SMT
+solvers. These techniques can roughly be separated into finite model finding and counterexample-producing
+decision procedures. The latter often occurs as a by-product of integrating SAT and SMT solvers with @ITP
+systems, as done in Rocq's SMTCoq @smtcoq and Lean's lean-smt @leansmt/*(TODO: is there an Isabelle SMT integration that is counterexample producing) */. Finite model finding techniques enumerate all
+potential finite models of a conjecture in search of a false model. This enumeration procedure is
+usually powered by a reduction to SAT or SMT. To the best of my knowledge, finite model finding has,
+so far, only been deployed to Isabelle in the form of Nitpick @nitpick and Refute @refute.
 
 #pagebreak(weak: true)
 
