@@ -304,25 +304,6 @@ keywords = {QuickChick, inductive relations, merging}
   pages = {197–212}
 }
 
-@article{bv_decide,
-author = {B\"{o}ving, Henrik and Bhat, Siddharth and Cicolini, Luisa and Keizer, Alex and Frenot, L\'{e}on and Mohamed, Abdalrhman and Stefanesco, L\'{e}o and Khan, Harun and Clune, Joshua and Barrett, Clark and Grosser, Tobias},
-title = {Interactive Bitvector Reasoning using Verified Bit-Blasting},
-year = {2025},
-issue_date = {October 2025},
-publisher = {Association for Computing Machinery},
-address = {New York, NY, USA},
-volume = {9},
-number = {OOPSLA2},
-url = {https://doi.org/10.1145/3763167},
-doi = {10.1145/3763167},
-abstract = {Bit-blasting SMT solvers enable efficient automatic reasoning about bitvectors, which are fundamental for the verification of compiler backends, cryptographic algorithms, hardware designs and other soft- or hardware tasks. Despite the clear demand for efficient bitvector reasoning infrastructure and the impressive advancements in state-of-the-art bit-blasting SMT solvers such as Bitwuzla, effective bitvector reasoning within interactive theorem provers (ITPs) remains a challenge, hindering their use for mechanized proofs. Incomplete bitvector libraries, unavailable or only partially integrated decision procedures, complex and hard-to-bitblast operations, and limited integration with the host language prevent the wide adoption of bitvector reasoning in proving contexts. We introduce bv_decide: the first end-to-end verified bitblaster designed for interactive bitvector reasoning in a dependently-typed ITP. Our verified bitblaster is scalable, comes with a complete end-to-end proof (trusting only the Lean compiler and kernel), and is available as a proof tactic that allows interactive reasoning right from within a programming language, in our case Lean. We use Lean’s Functional But In-Place (FBIP) paradigm to efficiently encode our core data structures (e.g., AIGs), demonstrating that fast execution of an SMT solver need not come at the expense of rigorous formalization. We enable dependable interactive verification of user-written-code by basing Lean’s C-Style standard dataypes UInt/SInt on our bitvector type, adding a lowering from enums and structs to bitvectors to enable transparent bit-blasting support for composed types, and by offering an interactive tactic that either solves a goal or provides a counter-example. Moreover, we present the design of Lean’s canonical bitvector library, which supports all operations (with reasoning principles) for the SMT-LIB 2.7 standard (including overflow modeling), is fast-to-execute, and offers a comprehensive API and automation for bit-width-independent reasoning. We thoroughly evaluate our bit-blaster on a comprehensive set of benchmarks, including the full SMT-LIB dataset, where bv_decide solves more theorems than the state-of-the-art in verified bit-blasting, CoqQFBV. We also verify over 7000 SMT statements extracted from LLVM, providing the largest mechanized verification of LLVM rewrites to date, to our knowledge. By making bit-blasting bitvector reasoning a polished, well-supported, and interactive feature of modern ITPs, we enable effective, dependable white-box reasoning for bitvector-level verification.},
-journal = {Proc. ACM Program. Lang.},
-month = oct,
-articleno = {389},
-numpages = {27},
-keywords = {Lean, bit-blasting, bitvector, decision procedure}
-}
-
 @misc{plausible,
     title={Plausible},
     author={The Lean Community},
@@ -343,4 +324,64 @@ keywords = {Lean, bit-blasting, bitvector, decision procedure}
   year = {2018},
   month = nov,
   pages = {659–684}
+}
+
+@masterthesis{mario-type-theory,
+  title        = {The Type Theory of Lean},
+  author       = {Mario Carneiro},
+  year         = 2019,
+  month        = {April},
+  note         = {Available at \url{https://github.com/digama0/lean-type-theory/releases/download/v1.0/main.pdf}},
+  school       = {Carnegie Mellon University},
+  type         = {Master's thesis}
+}
+
+
+@techreport{coc,
+  TITLE = {{The calculus of constructions}},
+  AUTHOR = {Coquand, T. and Huet, G{\'e}rard},
+  URL = {https://inria.hal.science/inria-00076024},
+  NUMBER = {RR-0530},
+  INSTITUTION = {{INRIA}},
+  YEAR = {1986},
+  MONTH = May,
+  PDF = {https://inria.hal.science/inria-00076024v1/file/RR-0530.pdf},
+  HAL_ID = {inria-00076024},
+  HAL_VERSION = {v1},
+}
+
+@inbook{cic,
+  title = {Inductively defined types in the Calculus of Constructions},
+  ISBN = {9780387348087},
+  ISSN = {1611-3349},
+  url = {http://dx.doi.org/10.1007/BFb0040259},
+  DOI = {10.1007/bfb0040259},
+  booktitle = {Mathematical Foundations of Programming Semantics},
+  publisher = {Springer-Verlag},
+  author = {Pfenning,  Frank and Paulin-Mohring,  Christine},
+  year = {1990},
+  pages = {209–228}
+}
+
+@inbook{veil,
+  title = {Veil: A Framework for Automated and Interactive Verification of Transition Systems},
+  ISBN = {9783031986826},
+  ISSN = {1611-3349},
+  url = {http://dx.doi.org/10.1007/978-3-031-98682-6_2},
+  DOI = {10.1007/978-3-031-98682-6_2},
+  booktitle = {Computer Aided Verification},
+  publisher = {Springer Nature Switzerland},
+  author = {Pîrlea,  George and Gladshtein,  Vladimir and Kinsbruner,  Elad and Zhao,  Qiyuan and Sergey,  Ilya},
+  year = {2025},
+  pages = {26–41}
+}
+
+@misc{tabled-typeclass,
+  title = {Tabled Typeclass Resolution},
+  author = {Daniel Selsam and Sebastian Ullrich and Leonardo de Moura},
+  year = {2020},
+  eprint = {2001.04301},
+  archiveprefix = {arXiv},
+  primaryclass = {cs.PL},
+  documenturl = {https://arxiv.org/pdf/2001.04301.pdf}
 }

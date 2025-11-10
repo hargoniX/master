@@ -37,7 +37,9 @@
     me a lot with the long-forgotten implementation details of Nunchaku. Furthermore, I would like
     to thank Abdalrhman Mohamed and Andrew Reynolds for implementing new features and fixing bugs
     in cvc5 that were crucial for this work. Joachim Breitner and Arthur Adjedj helped me navigate
-    components of the Lean metaprogramming ecosystem I was previously unfamiliar with.
+    components of the Lean metaprogramming ecosystem I was previously unfamiliar with. Finally I
+    would like to thank Siddharth Bhat for helping me with parts of the algorithmics for the
+    monomorphization.
   ]
 )
 #show: word-count.with(exclude: (raw.where(block: true), <no-wc>))
@@ -80,8 +82,8 @@ in @sect_impl. Lastly, I present an evaluation of Chako on a few case studies in
 
 #pagebreak(weak: true)
 
-= Related Work (1-1.5P) <sect_related>
-Many counterexample-finding techniques have been integrated with @ITP systems before. These techniques
+= Related Work (1P) <sect_related>
+Many counterexample-finding techniques have been integrated with @ITP systems in the past. These techniques
 can generally be located somewhere on a spectrum between concrete execution and fully symbolic
 reasoning.
 
@@ -103,7 +105,7 @@ Unlike random testing, this ensures that all potentially relevant inputs within 
 space are actually tested. The main limitation is that we can only feasibly test up to a rather
 small bound so big counterexamples will usually be missed.
 
-A fundamental limitation of techniques that rely purely on concrete execution is the inability to
+A fundamental limitation of systems that rely purely on concrete execution is the inability to
 refute propositions that are not executable. For example, to demonstrate that
 $forall n : NN, exists m : NN, n + m = m$ is false using concrete execution, the system would
 have to generate a value for $n$ and then try all possible values for $m$. Issues like this can be
@@ -117,21 +119,161 @@ solvers. These techniques can roughly be separated into finite model finding and
 decision procedures. The latter often occurs as a by-product of integrating SAT and SMT solvers with @ITP
 systems, as done in Rocq's SMTCoq @smtcoq and Lean's lean-smt @leansmt/*(TODO: is there an Isabelle SMT integration that is counterexample producing) */. Finite model finding techniques enumerate all
 potential finite models of a conjecture in search of a false model. This enumeration procedure is
-usually powered by a reduction to SAT or SMT. To the best of my knowledge, finite model finding has,
-so far, only been deployed to Isabelle in the form of Nitpick @nitpick and Refute @refute.
+usually powered by a reduction to SAT or SMT. Finite model finding has, so far, only been deployed
+to Isabelle in the form of Nitpick @nitpick and Refute @refute.
 
 #pagebreak(weak: true)
 
 = Background (4-6P) <sect_background>
-== Lean 4 (2P-3P) <sect_lean4>
-@lean4, @sebastianphd
-- explain basics of Lean
-- focus on the fragment we are interested in:
-  - `inductive`
-  - `def`
-  - `theorem`
-  - `instance`
-- talk about why we will think of lean definitions being defined in terms of equations
+I begin by providing an overview of the fundamentals of the source and target languages involved in
+the reduction, focusing on the fragments relevant to this work. Additional details are discussed
+later in @sect_reduct and @sect_impl.
+
+== Lean 4 (3P) <sect_lean4>
+Lean 4 @lean4 is an open-source interactive theorem prover and functional programming language.
+Originally developed by Leonardo de Moura at Microsoft Research and Sebastian Ullrich at KIT, it is
+nowadays maintained by the Lean FRO with many open-source contributions by other volunteers. On the theorem
+proving side, Lean's logic is a dependent type theory based on the Calculus of Inductive Constructions @coc @cic.
+This base calculus is extended with several axioms, most notably quotients, function extensionality, and
+choice. A thorough theoretical description of Lean's logic and its properties can be found
+in the work of #cite(<mario-type-theory>, form: "prose") and #cite(<sebastianphd>, form: "prose").
+
+The syntax of Lean's core expression language is given by the grammar:
+$
+  e ::= x | c | e " " e | lambda x : e . e | "let" x := e; e | forall x : e. e | "Sort" u
+$
+Just like the simply typed lambda calculus, it contains variables, constants, function application,
+function abstraction, and let abstraction. Unlike the simply typed lambda calculus, it does not have a function
+type $A -> B$ but instead the dependent function type $forall x : A . B$. The crucial
+difference being that the _term_ variable $x$ may occur in the _type_ $B$, we say $B$ depends on
+$x$. For example, we can denote the type of functions that take a natural number $n$ and return a number
+less than $n$ as $forall n : NN, "Fin" n$. If $B$ does not depend on $x$, we usually write just
+$A -> B$ instead.
+
+Lean supports several kinds of constants, with the most prominent ones being definitions, theorems,
+and inductive types. Definitions and theorems consist of a name, type or statement, and a body.
+The body may refer to the definition recursively in the surface-level syntax.
+While Lean internally desugars these recursive definitions into a non-recursive
+representation, we will mostly work with the equations that get automatically
+derived from the original syntax. Inductive types are the primary mechanism to introduce new types
+in Lean. They are defined by listing their constructors, which specify the ways in which values of
+the type can be built. A few examples of basic inductive types and definitions are given in @basic-inductives.
+
+As alluded to in @basic-inductives by the `: Type` notation, these basic inductive types also have a type:
+$"Type"$. In fact, Lean supports a whole hierarchy of types $"Type" : "Type" 1 : ... : "Type" u : "Type" (u + 1)$
+in order to avoid type-theoretic versions of Russell's paradox. At the bottom of
+this hierarchy sits the type of mathematical propositions $"Prop" : "Type"$. Both of these concepts
+are unified with the expression $"Sort" u$ by defining $"Prop" := "Sort" 0$ and $"Type" u := "Sort" (u + 1)$.
+
+#figure(
+  ```lean
+  inductive Unit : Type where
+    | unit
+
+  inductive Bool : Type where
+    | true
+    | false
+
+  def Bool.not (b : Bool) : Bool :=
+    match b with
+    | true => Bool.false
+    | false => Bool.true
+
+  -- types may be recursive
+  inductive Nat : Type where
+    | zero
+    | succ (n : Nat)
+
+  -- types may contain proofs of invariants
+  inductive Fin (n : Nat) : Type where
+    | mk (val : Nat) (h : val < n)
+
+  -- types may be generic over other types
+  inductive Prod (α : Type) (β : Type) : Type where
+    | mk (fst : α) (snd : α)
+
+  def Prod.fst {α : Type} {β : Type} (p : Prod α β) : α :=
+    match p with
+    | .mk fst _ => fst
+
+  -- dependent product type
+  inductive Sigma (α : Type) (β : α → Type) : Type where
+    | mk (fst : α) (snd : β fst)
+
+  inductive List (α : Type) : Type where
+    | nil
+    | cons (x : α) (xs : List α)
+
+  -- definitions may be recursive
+  def List.length {α : Type} (xs : List α) : Nat :=
+    match xs with
+    | nil => Nat.zero
+    | cons _ ys => Nat.succ (List.length ys)
+
+  -- lists of length n
+  inductive Vec (α : Type) : Nat → Type where
+    | nil : Vec α 0
+    | cons {n : Nat} (x : α) (xs : Vec α n) : Vec α (n + 1)
+  ```,
+  caption: "Basic Inductive Types and Definitions",
+  gap: 1.5em,
+) <basic-inductives>
+
+#pagebreak(weak: true)
+
+Proofs in Lean are done using the Curry-Howard correspondence: Given a type $P : "Prop"$, if we
+can construct an inhabitant of that type $h : P$, then $h$ is a proof of $P$. The main
+motivation for introducing $"Prop"$ as a separate concept is to allow for impredicativity and proof
+irrelevance. That is, we have $(forall x : A, P) : "Prop"$ and for any two inhabitants
+$h_1, h_2 : P$ we get $h_1 = h_2$ by definition. Proof irrelevance is going to be of particular
+interest because it ensures that proof terms cannot be computationally relevant.
+This allows us to always erase proofs without changing the semantics of a Lean program.
+
+On top of these base concepts, Lean provides a myriad of additional concepts that all get reduced to
+the core calculus through a process called elaboration. These reductions are performed by programs
+called elaborators that are also written in Lean. The mechanism for integrating additional elaborators is so powerful
+that completely new languages have been developed entirely as extensions to Lean itself. For
+example, Veil @veil implements a language for defining and reasoning about distributed systems within
+Lean.
+
+On the type level, a very common extension is `structure`s. They are inductive types with only one
+constructor. For each structure, Lean automatically derives projection functions to obtain each of the
+parameters to that constructor. Using structures, the `Prod` definition from @basic-inductives could
+have also been written as:
+```lean
+structure Prod (α : Type) (β : Type) where
+  fst : α -- Prod.fst is defined implicitly
+  snd : α
+```
+On the expression level, one of the most pervasive extensions is implicit parameters.
+If a parameter is written `{x : A}` instead of `(x : A)`, Lean will attempt
+to infer it from the other parameters. For example, the `List.length` function in @basic-inductives
+will attempt to infer its type parameter `α` by inspecting the type of `xs`. Parameters written as
+`[x : A]` are resolved using type class inference. Type classes are ordinary `inductive`s or
+`structure`s that are tagged as a `class`. Type class inference performs a Prolog-like search
+@tabled-typeclass through definitions of such classes that have been tagged as an `instance`.
+
+The type class system is frequently used to provide user-extensible notations.
+This is usually done by introducing a type class with a function field together with a notation that
+maps to this function. With this approach, we might implement a user-extensible addition operator as follows:
+#grid(
+  columns: (1fr, 1fr),
+  align: center,
+```lean
+class Add (α : Type) where
+  add : α → α → α
+
+-- Add.add implicitly takes [Add α]
+notation " + " => Add.add
+```,
+```lean
+instance : Add Nat where
+  add := Nat.add
+
+instance : Add Int where
+  add := Int.add
+```
+)
 
 #pagebreak(weak: true)
 
@@ -159,6 +301,7 @@ so far, only been deployed to Isabelle in the form of Nitpick @nitpick and Refut
 == Eliminating Dependent Types (8P) <sect_trans_dtt>
 @nunchakudtt
 
+/*
 Idea: Generate invariant propositions and erase useless things.
 
 Two steps of translation:
@@ -205,9 +348,11 @@ of symbols, will have to think about it
 - type aliases,  it is crucial that this particular part happens everywhere to kill things such as
   `outParam` for the monomorphization
 - literals
+*/
 
 == Eliminating Polymorphism (4P) <sect_trans_poly>
 
+/*
 This leaves us with an expression language consisting of:
 $
   e := x | c | U_n | e " " e | forall (x : e), e | lambda (x : e), e
@@ -339,12 +484,14 @@ TODO: Talk about solvability
 After constraint collection we solve it with a standard fixpoint solver for lattice constraints.
 
 TODO talk about applying the results
+*/
 
 #pagebreak(weak: true)
 
 = Implementation (5P) <sect_impl>
 
 == The Lean Frontend (3P) <sect_impl_lean>
+/*
 The elimination is guided by a few core principles:
 - try to stay in well typed Lean for as long as possible in order to:
   - make use of the extensive meta framework available in Lean
@@ -372,29 +519,38 @@ We eliminate:
   - essentially a 1:1 implementation of the above algorithm
 
 In addition to that we infer and annotate `[wf]` predicates for Nunchaku.
+*/
 
 == Extending Nunchaku (2P) <sect_impl_nunchaku>
+/*
 The following extensions to nunchaku are made to support this type of problem better:
 - supporting specialisation for inductive predicates
 - supporting erasure of unused arguments
 - adding the cvc5 backend
 - mention the fixed bugs
+*/
 #pagebreak(weak: true)
 
 = Case Studies (4P) <sect_case_studies>
+/*
 - Case Studies:
   - reproducing grammar case study from @nitpickpred
   - reproducing type system case study from @nitpick
+*/
+#pagebreak(weak: true)
 
 = Evaluation (2-3P) <sect_eval>
+/*
 - Large scale data:
   - evaluating on a chunk of lean stdlib + custom written libraries whether the system appears to
     be sound in practice despite its defficencies
   - mutating those theorems into false ones then evaluating on them to figure out counter example
     finding rate
+*/
 
 #pagebreak(weak: true)
 = Outlook (1P) <sect_outlook>
+/*
 - Dealing with the function extensionality issue:
   - maybe by trying to eliminate the other way around
     - challenges that might arise from that so far unclear but things like existential type
@@ -405,7 +561,7 @@ The following extensions to nunchaku are made to support this type of problem be
   - HKTs
   - polymorphism over dependent types
   - existentials
-
+*/
 
 #v(15pt)
 #[Total characters counted excluding code blocks: #total-characters] <no-wc>
