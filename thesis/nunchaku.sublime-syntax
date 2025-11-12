@@ -1,0 +1,10 @@
+%YAML 1.2
+---
+name: Nunchaku
+file_extensions: [nun]
+scope: source.nun
+
+contexts:
+  main:
+    - match: \b(if|then|else|forall|exists|pi|rec|pred|data|axiom|goal|val)\b
+      scope: keyword.control.nun

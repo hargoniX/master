@@ -1,6 +1,8 @@
 #import "template.typ": *
 #import "@preview/wordometer:0.1.4": word-count, total-characters
 
+#set raw(syntaxes: "nunchaku.sublime-syntax")
+
 #let target_date = datetime(year: 2026, month: 1, day: 23)
 #show : official.with(
   title: [
@@ -107,7 +109,7 @@ small bound so big counterexamples will usually be missed.
 
 A fundamental limitation of systems that rely purely on concrete execution is the inability to
 refute propositions that are not executable. For example, to demonstrate that
-$forall n : NN, exists m : NN, n + m = m$ is false using concrete execution, the system would
+$forall n : NN. exists m : NN. n + m = m$ is false using concrete execution, the system would
 have to generate a value for $n$ and then try all possible values for $m$. Issues like this can be
 addressed with techniques that make use of symbolic reasoning. Between the fully symbolic and fully
 concrete ends of the spectrum, Isabelle's Quickcheck also implements a narrowing-based approach. The idea
@@ -224,7 +226,7 @@ are unified with the expression $"Sort" u$ by defining $"Prop" := "Sort" 0$ and 
 Proofs in Lean are done using the Curry-Howard correspondence: Given a type $P : "Prop"$, if we
 can construct an inhabitant of that type $h : P$, then $h$ is a proof of $P$. The main
 motivation for introducing $"Prop"$ as a separate concept is to allow for impredicativity and proof
-irrelevance. That is, we have $(forall x : A, P) : "Prop"$ and for any two inhabitants
+irrelevance. That is, we have $(forall x : A. P) : "Prop"$ and additionally for any two inhabitants
 $h_1, h_2 : P$ we get $h_1 = h_2$ by definition. Proof irrelevance is going to be of particular
 interest because it ensures that proof terms cannot be computationally relevant.
 This allows us to always erase proofs without changing the semantics of a Lean program.
@@ -278,22 +280,148 @@ instance : Add Int where
 #pagebreak(weak: true)
 
 == Nunchaku (2P-3P) <sect_nunchaku>
-@nitpick, @nitpickpred, @nunchakudtt, @smbc, @cvc4, @kodkod, @paradox
-- explain relevant fragment of the input logic for nunchaku
-  - basic expression language from HOL
-  - `data`, `pred`, `axiom`, `val`, `goal`
-- explain the general nunchaku architecture
-  - micropass system for reducing from the original goal to the solver specific logic, then pulling
-    results back along it.
-  - pipeline data type?
-- roughly explain the pipeline to CVC4 in its current stage
-  - list out all of its steps first `--pp-pipeline`
-  - describe the parts relevant to this work:
-    - type skolemization and monomorphisation: Relevant because we need to show Lean's type theory
-      needs more than this
-    - specialisation: Relevant as this demonstrates how relevant removing HOF is
-    - polarisation and unrolling: Relevant as this demonstrates how relevant `[wf]` annotations are
-    - elimination of inductive predicates: Relevant to motivate that specialising again after this makes sense
+Nunchaku @nunchakudtt is an open-source finite model finder. It is the spiritual successor
+to Nitpick and was developed by Simon Cruanes and Jasmin Blanchette at INRIA.
+Unlike Nitpick, Nunchaku is not tied to Isabelle as the input language and Kodkod @kodkod
+as the backend solver. Instead, it consumes an idiosyncratic variant of classical @HOL @holbook and
+has a family of backend solvers consisting of Kodkod, CVC4 @cvc4, SMBC @smbc, and Paradox @paradox.
+Unfortunately, no publication about the overall design of Nunchaku has been made to date.
+Therefore, the following section is largely based on reading the implementation and talking to
+its authors.
+
+Nunchaku's type and term language is based on @HOL, enriched with a lot of built-in concepts. The
+relevant fragment for this work is given by the following grammar:
+$
+  tau ::=& "type" | "prop" | tau -> tau | c " " overline(tau) | Pi x . tau  \
+  t ::=& c | x | t " " t | lambda x : tau . t | "let" x := t; t | forall x : tau . t | exists x : tau . t \
+    & | top | bot | not t | t or t | t and t | t => t | t = t | "if" t "then" t "else" t \
+$
+
+The terms $t$ range over the usual connectives of simply typed lambda calculus, extended with
+basic quantifiers and propositional connectives. The types $tau$ consist of the universe of types,
+the universe of propositions, function types, constants applied to type arguments ($overline(tau)$
+denotes a sequence of type arguments), and abstraction over type arguments.
+
+The core commands used to describe a Nunchaku problem are `val`, `axiom`, and `goal`. The `val` command
+declares an uninterpreted constant for which Nunchaku must find a model. This model must satisfy
+the condition that the conjunction of all predicates marked as `axiom` implies the conjunction of all
+predicates marked as `goal`.
+
+For defining interpreted constants, Nunchaku has three main commands: `pred`, `data`, and `rec`.
+Both `data` and `rec` operate similarly to Haskell, with `data` allowing definitions of polymorphic
+algebraic types and `rec` allowing definitions of recursive functions by listing equations
+they must fulfill. Lastly, `pred` provides a way to define inductive predicates by specifying their
+introduction rules, similar to Isabelle or Lean. Using these basic commands, we can ask
+Nunchaku for a counter-model of "adding two odd numbers yields an odd one":
+
+#grid(
+  columns: (1.1fr, 0.9fr),
+  align: center,
+```nun
+data nat := Z | S nat.
+
+rec add : nat -> nat -> nat :=
+  forall x. add Z x = x;
+  forall x y. add (S x) y = S (add x y).
+
+pred odd : nat -> prop :=
+  odd (S Z);
+  forall n. odd n => odd (S (S n)).
+```,
+```nun
+val n : nat.
+axiom odd n.
+
+val m : nat.
+axiom odd m.
+
+goal ~odd (add n m).
+```
+)
+
+In order to solve these problems, Nunchaku applies long pipelines of reduction passes that eventually
+end up in the input logic of its solvers. With the CVC4 pipeline alone containing 21 passes,
+explaining the pipelines in full would be far out of scope for this work. Instead, the following
+description focuses on the key steps relevant for the design of the reduction from Lean to
+Nunchaku.
+
+The first step across all pipelines is the elimination of polymorphism through monomorphization. The monomorphizer
+removes all polymorphism by creating specialized copies of polymorphic constants, instantiated with
+the type arguments they are used with. To simplify this process, Nunchaku imposes two restrictions
+on its polymorphism. First, it supports only ML-style rank-1 polymorphism, meaning that a function
+can be polymorphic, but it cannot take an argument that is itself polymorphic. Second, it does
+not support higher-kinded polymorphism: $Pi$ may abstract over types but not type constructors.
+
+After eliminating polymorphism, Nunchaku performs a few additional passes to remove other
+convenience features before arriving at the specialization pass. Specialization is an optimization
+that attempts to eliminate higher-order functions from the problem. It does so by first identifying
+higher-order arguments of `rec` functions that remain fixed in all recursive calls. Once these arguments
+are identified, Nunchaku inspects the call sites of the `rec`s and generates copies with the
+concrete higher-order arguments substituted in.
+
+In the following example specialization can eliminate the higher-order function `map`:
+```nun
+rec map : (nat -> nat) -> list -> list :=
+  forall f. map f Nil = Nil;
+  forall f x xs. map f (Cons x xs) = Cons (f x) (map f xs).
+
+val xs : list.
+goal map (add Z) xs != xs.
+```
+As we can see in the definition of `map`, the higher-order argument `f` always remains fixed in
+recursive calls. For this reason, Nunchaku will decide to create a copy of `map`, specialized on the
+`add Z` function. This transformation turns the problem into an entirely first order one:
+```nun
+rec map_spec : list -> list :=
+  map_spec Nil = Nil;
+  forall x xs. map_spec (Cons x xs) = Cons (add Z x) (map_spec xs).
+
+val xs : list.
+goal map_spec xs != xs.
+```
+
+The last important pass for this work is the elimination of `pred` into `rec`. It is heavily
+inspired by the encoding of inductive predicates used by Nitpick @nitpickpred. The encoding is
+based on the fact that given an inductive predicate $p$ of the shape:
+$
+  & "pred" p : tau_1 -> ... -> tau_m -> "prop" "where" \
+  & forall overline(y)_1 . p " " overline(t)_11 and ... and p " " overline(t)_(1cal(l)_1) and Q_1 => p " " overline(u)_1 \
+  & dots.v \
+  & forall overline(y)_n . p " " overline(t)_(n 1) and ... and p " " overline(t)_(n cal(l)_n) and Q_n => p " " overline(u)_n\
+$
+where the arguments $t_(i j)$ to $p$ and the side conditions $Q_i$ do not refer to $p$, $p$ is
+equivalent to the least fixed point of the equation @paulson-indpred @harrison-indpred: #footnote[Due to the mentioned syntactic restrictions
+this fixpoint always exists by the Knaster-Tarski theorem]
+$
+  p " " overline(x) = (exists overline(y). or.big_(j = 1)^n overline(x) = overline(u)_j and p " " overline(t)_(j 1) and ... and p " " overline(t)_(j cal(l)_j) and Q_j)
+$
+While we could already take this equation as the definition of $p$, this is generally unsound because
+it underspecifies $p$. However, there are two situations in which this is sound.
+
+The first situation is negative occurrences of $p$. For identifying these occurrences, Nunchaku
+runs a pass called polarization prior to predicate elimination. The polarizer traverses through the
+problem and identifies the polarity in which applications of inductive predicates occur. Afterward they get replaced
+with two copies, $p^-$ and $p^+$, in negative and positive contexts respectively. During predicate
+elimination, the $p^-$ copies are reduced to `rec` definitions with the right-hand side of the fixpoint equation
+as their body. This is sound because $p$ is a least fixed point and thus overapproximated by $p^-$:
+$forall overline(x) . p " " overline(x) => p^- " " overline(x)$. By contraposition we get soundness for negative contexts:
+$forall overline(x) . not p^- " " overline(x) => not p " " overline(x)$.
+
+Second, if the recursion in the fixpoint equation is well-founded, the equation has exactly one
+solution @harrison-indpred, allowing us to use the fixpoint equation as the definition even for $p^+$. In
+order to ensure that the recursion is well-founded, there needs to exist a relation $R$ such that:
+$
+  and.big_(i=1)^n and.big_(j=1)^(cal(l)_i) (Q_i => (overline(t)_(i j), overline(u)_i) in R)
+$
+This is where Nunchaku takes a deviation from Nitpick. In Nitpick the system itself will attempt to
+find such a relation, while Nunchaku relies on the input problem to mark well-founded predicates.
+
+Lastly, for inductive predicates that occur positively and do not fulfill the well-foundedness
+criterion, Nunchaku converts them into well-founded ones. This is done by introducing an additional
+fuel parameter of type $"nat"$ that decreases in each recursive call to the definition of $p$.
+Along with this parameter, it introduces another uninterpreted constant $p_"decr" : "nat"$ that is
+added to each application of $p$. Because the fuel decreases in every call, the recursion is
+guaranteed to be well-founded and the predicate can be eliminated.
 
 #pagebreak(weak: true)
 
