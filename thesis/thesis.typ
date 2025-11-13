@@ -688,9 +688,7 @@ The following extensions to nunchaku are made to support this type of problem be
 = Case Studies (4P) <sect_case_studies>
 In this section, I present two case studies that demonstrate Chako’s capabilities when applied to
 realistic verification problems: bisection on arrays and AA trees. These examples were selected
-to highlight the range of Lean constructs supported by Chako. Through them, I aim to illustrate both
-the expressiveness of the targeted Lean fragment and the practical potential of Chako
-in handling diverse problem domains.
+to highlight the range of Lean constructs supported by Chako.
 
 == Bisection <sect_case_studies_bisect>
 The first example concerns the Lean standard library function `Array.binSearch`. It implements a
@@ -882,16 +880,9 @@ theorem WF_insert [TotalOrder α] [DecidableLT α] (t : AATree α) :
 ```
 Indeed Chako finds no counter-example for this within its default timeout.
 
-Let us now introduce two bugs into the implementation and observe how Chako fairs at detecting them.
-Just like in the bisection example, Chako is made to look for `AATree Nat` counter-examples for
-readability purposes. The first bug drops the `split <| skew` call from `insert`.
-For this bug Chako quickly reports `t := node 1 0 nil nil` and `x := 0`. To confirm the bug we can
-run the broken insert operation with this input and get `node 1 1 (node 0 1 nil nil) nil`. This tree
-violates condition 3 of the invariant as the level of the root node is not greater than its left
-child's.
-
-The second bug is a more subtle mistake that I made myself in the first iteration of this case
-study:
+Let us now introduce a suble bug into the implementation and observe how Chako fairs at detecting it.
+This bug is a simple typo that I unintentionally made during the initial implementation of this
+case study:
 ```diff
  def skew : AATree α → AATree α
    | nil => nil
@@ -902,8 +893,11 @@ study:
      else
        node x lvl l r
 ```
-Chako detects this bug as quickly as the first one. The counter-example is once again
-`t := node 1 0 nil nil` and `x := 0` with the same invariant violation as before.
+Just like in the bisection example, Chako is made to look for `AATree Nat` counter-examples for
+readability purposes. In this configuration Chako quickly reports `t := node 1 0 nil nil` and `x := 0`.
+To confirm the bug we can run the broken insert operation with the counter-example and get
+`node 1 1 (node 0 1 nil nil) nil`. This tree violates condition 3 of the invariant as the level of
+the root node is not greater than its left child's.
 
 #pagebreak(weak: true)
 
