@@ -47,7 +47,7 @@
 #show: word-count.with(exclude: (raw.where(block: true), <no-wc>))
 #show figure.caption : set text(10pt)
 
-= Introduction (1P) <sect_intro>
+= Introduction <sect_intro>
 
 The growing pervasiveness and sophistication of modern computing systems has increased both their
 susceptibility to faults and the scale of damage such faults can cause. Ensuring that critical
@@ -84,7 +84,7 @@ in @sect_impl. Lastly, I present an evaluation of Chako on a few case studies in
 
 #pagebreak(weak: true)
 
-= Related Work (1P) <sect_related>
+= Related Work <sect_related>
 Many counterexample-finding techniques have been integrated with @ITP systems in the past. These techniques
 can generally be located somewhere on a spectrum between concrete execution and fully symbolic
 reasoning.
@@ -126,12 +126,12 @@ to Isabelle in the form of Nitpick @nitpick and Refute @refute.
 
 #pagebreak(weak: true)
 
-= Background (4-6P) <sect_background>
+= Background <sect_background>
 I begin by providing an overview of the fundamentals of the source and target languages involved in
 the reduction, focusing on the fragments relevant to this work. Additional details are discussed
 later in @sect_reduct and @sect_impl.
 
-== Lean 4 (3P) <sect_lean4>
+== Lean 4 <sect_lean4>
 Lean 4 @lean4 is an open-source interactive theorem prover and functional programming language.
 Originally developed by Leonardo de Moura at Microsoft Research and Sebastian Ullrich at KIT, it is
 nowadays maintained by the Lean FRO with many open-source contributions by other volunteers. On the theorem
@@ -279,7 +279,7 @@ instance : Add Int where
 
 #pagebreak(weak: true)
 
-== Nunchaku (2P-3P) <sect_nunchaku>
+== Nunchaku <sect_nunchaku>
 Nunchaku @nunchakudtt is an open-source finite model finder. It is the spiritual successor
 to Nitpick and was developed by Simon Cruanes and Jasmin Blanchette at INRIA.
 Unlike Nitpick, Nunchaku is not tied to Isabelle as the input language and Kodkod @kodkod
@@ -302,10 +302,10 @@ basic quantifiers and propositional connectives. The types $tau$ consist of the 
 the universe of propositions, function types, constants applied to type arguments ($overline(tau)$
 denotes a sequence of type arguments), and abstraction over type arguments.
 
-The core commands used to describe a Nunchaku problem are `val`, `axiom`, and `goal`. The `val` command
-declares an uninterpreted constant for which Nunchaku must find a model. This model must satisfy
-the condition that the conjunction of all predicates marked as `axiom` implies the conjunction of all
-predicates marked as `goal`.
+The primary commands used to describe a Nunchaku problem are `val`, `axiom`, and `goal`.
+The `val` command introduces uninterpreted constants for which Nunchaku must construct a model.
+This model must ensure that the conjunction of all `axiom` predicates entails the conjunction of all
+`goal` predicates.
 
 For defining interpreted constants, Nunchaku has three main commands: `pred`, `data`, and `rec`.
 Both `data` and `rec` operate similarly to Haskell, with `data` allowing definitions of polymorphic
@@ -390,26 +390,30 @@ $
   & forall overline(y)_n . p " " overline(t)_(n 1) and ... and p " " overline(t)_(n cal(l)_n) and Q_n => p " " overline(u)_n\
 $
 where the arguments $t_(i j)$ to $p$ and the side conditions $Q_i$ do not refer to $p$, $p$ is
-equivalent to the least fixed point of the equation @paulson-indpred @harrison-indpred: #footnote[Due to the mentioned syntactic restrictions
+equivalent to the least fixpoint of the equation @paulson-indpred @harrison-indpred: #footnote[Due to the mentioned syntactic restrictions
 this fixpoint always exists by the Knaster-Tarski theorem]
 $
   p " " overline(x) = (exists overline(y). or.big_(j = 1)^n overline(x) = overline(u)_j and p " " overline(t)_(j 1) and ... and p " " overline(t)_(j cal(l)_j) and Q_j)
 $
 While we could already take this equation as the definition of $p$, this is generally unsound because
-it underspecifies $p$. However, there are two situations in which this is sound.
+it underspecifies $p$. However, there are two cases for which this is sound.
 
-The first situation is negative occurrences of $p$. For identifying these occurrences, Nunchaku
-runs a pass called polarization prior to predicate elimination. The polarizer traverses through the
-problem and identifies the polarity in which applications of inductive predicates occur. Afterward they get replaced
-with two copies, $p^-$ and $p^+$, in negative and positive contexts respectively. During predicate
-elimination, the $p^-$ copies are reduced to `rec` definitions with the right-hand side of the fixpoint equation
-as their body. This is sound because $p$ is a least fixed point and thus overapproximated by $p^-$:
-$forall overline(x) . p " " overline(x) => p^- " " overline(x)$. By contraposition we get soundness for negative contexts:
+The first case concerns negative occurrences of $p$. To identify these, Nunchaku performs a
+preprocessing step called polarization before predicate elimination. The polarizer traverses the
+problem and determines the polarity in which applications of inductive predicates appear.
+Each predicate $p$ is then replaced by two variants, $p^-$ and $p^+$, used in negative and
+positive contexts, respectively.
+
+During predicate elimination, occurrences of $p^-$ are transformed into `rec` definitions whose
+bodies correspond to the right-hand side of the fixpoint equation. This transformation is sound
+because $p$ represents a least fixpoint and is thus overapproximated by $p^-$, which admits any fixpoint:
+$forall overline(x) . p " " overline(x) => p^- " " overline(x)$. By contraposition, soundness for negative contexts follows:
 $forall overline(x) . not p^- " " overline(x) => not p " " overline(x)$.
 
-Second, if the recursion in the fixpoint equation is well-founded, the equation has exactly one
-solution @harrison-indpred, allowing us to use the fixpoint equation as the definition even for $p^+$. In
-order to ensure that the recursion is well-founded, there needs to exist a relation $R$ such that:
+The second case concerns the remaining positive occurrences of $p$. If the recursion in the
+corresponding fixpoint equation is well-founded, the equation has exactly one solution @harrison-indpred.
+This allows us to use the fixpoint equation as the definition for $p^+$ as well. For the recursion
+to be well-founded, there needs to exist a relation $R$ such that:
 $
   and.big_(i=1)^n and.big_(j=1)^(cal(l)_i) (Q_i => (overline(t)_(i j), overline(u)_i) in R)
 $
@@ -422,6 +426,28 @@ fuel parameter of type $"nat"$ that decreases in each recursive call to the defi
 Along with this parameter, it introduces another uninterpreted constant $p_"decr" : "nat"$ that is
 added to each application of $p$. Because the fuel decreases in every call, the recursion is
 guaranteed to be well-founded and the predicate can be eliminated.
+
+As an example for this consider the $<=$ predicate on natural numbers:
+```nun
+pred nat_le : nat -> nat -> prop :=
+  forall n. nat_le n n;
+  forall n m. nat_le n m => nat_le n (Succ m).
+```
+For negative occurrences this yields:
+```nun
+rec nat_le- : nat -> nat -> prop :=
+  forall l r . nat_le- l r =
+    exists m. l = r || (r = S m && nat_le- l m).
+```
+If the predicate would be (correctly) marked as `[wf]` by the problem, the body of `nat_le-`
+would also be used for `nat_le+`. Given that it is not marked as `[wf]` here, Nunchaku also
+generates:
+```nun
+rec nat_le+ : nat -> nat -> nat -> prop :=
+  forall l r. nat_le+ Z l r = false;
+  forall f l r. nat_le+ (S f) l r =
+    exists m. l = r || (r = S m && nat_le+ f l m).
+```
 
 #pagebreak(weak: true)
 
