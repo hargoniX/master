@@ -723,46 +723,45 @@ def binSearch {α : Type u} (as : Array α) (k : α) (lt : α → α → Bool) :
     none
 ```
 While the algorithmic side is quite simple, this program already suffices to demonstrate quite a few of the
-features supported by Chako: TODO: eliminate bullet points
-- the implementation is generic over the type of array elements
-- `binSearchAux` makes use of well-founded recursion through `termination_by`
-- `binSearchAux` works with both an explicit proof argument `h` and the dependent type `Fin`
-  to avoid bounds checks while accessing the array.
-
-
-Let us first consider a completeness theorem for `Array.binSearch`:
+features supported by Chako. First, the implementation is generic over the type of elements of the
+array, calling the monomorphizer into action. Second, `binSearchAux` makes use of well-founded
+recursion, carries an explicit proof argument `h`, and works with the dependent type `Fin` to avoid
+bounds checks.
+#pagebreak(weak: true)
+Let us first consider a completeness theorem for `Array.binSearch`. The formulation uses the
+proof-carrying type class `TotalOrder` to constrain the $<$ relation on `α`:
 ```lean
 theorem complete [TotalOrder α] [DecidableLT α] (xs : Array α)
     (h : n ∈ xs) : xs.binSearch n (· < ·) = some n
 ```
-While Chako quickly provides a counter-example, it also synthesizes a quite unreadable $<$ for `α`
-which makes this counter-example not so helpful. Instead of checking this fully general theorem,
-we can inspect a version specialised on `Nat` to get a more understandable output:
+Chako produces a counterexample in $0.2$ seconds, but it synthesizes a quite unreadable $<$
+on `α`, which makes the counterexample difficult to interpret. Instead of checking this fully
+general theorem, we can inspect a version specialized on `Nat` to get a more understandable output:
 ```lean
 theorem complete (xs : Array Nat) (h : n ∈ xs) :
     xs.binSearch n (· < ·) = some n
 ```
-Here Chako finds `xs := #[1, 0]` and `n := 0` which allows us to pinpoint the flaw in this specification:
-`xs` is not restricted to sorted arrays.
+For this version, Chako finds the counterexample `xs := #[1, 0]` and `n := 0`, which allows us to pinpoint the flaw in
+this specification: `xs` is not restricted to sorted arrays. After adding this additional
+assumption, Chako times out as expected.
 
-Moving on from completeness we might also be interested in verifying soundness:
+In addition to completeness, we might also be interested in verifying soundness:
 ```lean
 theorem sound (xs : Array Nat) :
     xs.binSearch n (· < ·) = some y ↔ n = y
 ```
-Note that this theorem should even hold for unsorted arrays, if we found something it should
-be the thing we were looking for. However, the theorem does not accurately reflect this idea, as
-shown by Chako's counter-example `n := 0`, `y := 0`, and `xs := #[]`. The flaw here is that the
-theorem is stated too strongly with `↔` instead of `→`. (TODO: reformulate)
+Note that this theorem should hold even for unsorted arrays; if the function returns a value,
+it should be the one we were looking for. However, the current statement does not capture this idea
+correctly. Chako reveals the issue with the counterexample `n := 0`, `y := 0`, and `xs := #[]`.
+The problem is that the theorem is stated too strongly, using `↔` instead of `→`.
 
 == AA Trees <sect_case_studies_aa>
-The second case is a formalization of AA trees @aatrees. AA trees are self-balancing search
-trees with a focus on simple implementation. I chose this example for two reasons. First, it
-works with a tree-like data structure and a non-trivial invariant, both things that are not covered
-by bisection. Second, Nunchaku has a test called `slow_aa_trees`, derived from the Nitpick
-case study on AA trees @nitpickpred (which this case study takes heavy inspiration from).
-This test case was not (reasonably quickly) solvable by Nunchaku until the improvements described
-in @sect_impl_nunchaku.
+The second case study is an AA tree @aatrees formalization. AA trees are self-balancing search
+trees designed with a focus on simple implementation. I selected this example for two reasons.
+First, it involves a tree-shaped data structure and a non-trivial invariant, both things that are
+not covered by the bisection example. Second, Nunchaku has a test called `slow_aa_trees`, derived from the Nitpick
+case study on AA trees @nitpickpred, which heavily inspired this case study. This Nunchaku test case
+remained unsolved (within a reasonable time) by Nunchaku until the improvements described in @sect_impl_nunchaku.
 
 The foundation of this case study are the AA tree itself and some utility functions:
 
@@ -774,10 +773,6 @@ inductive AATree (α : Type u) where
 #grid(
   columns: (1fr, 1fr),
 ```lean
-def lvl : AATree α → Nat
-  | nil => 0
-  | node _ lvl _ _ => lvl
-
 def left : AATree α → AATree α
   | nil => .nil
   | node _ _ l _ => l
@@ -786,7 +781,17 @@ def left : AATree α → AATree α
 def right : AATree α → AATree α
   | nil => .nil
   | node _ _ _ r => r
+```
+)
 
+#grid(
+  columns: (1fr, 1fr),
+```lean
+def lvl : AATree α → Nat
+  | nil => 0
+  | node _ lvl _ _ => lvl
+```,
+```lean
 def isNil : AATree α → Bool
   | nil => true
   | node .. => false
@@ -804,8 +809,8 @@ def mem (x : α) : AATree α → Prop
   | node d _ l r => d = x ∨ mem x l ∨ mem x r
 ```
 
-The self-balancing mechanism of AA trees revolves around maintaining an invariant on the level
-field of the nodes:
+The self-balancing mechanism of AA trees revolves around maintaining the following invariant on the
+level field of the nodes:
 1. Nil nodes have level $0$
 2. Leaf nodes have level $1$
 3. A node's level must be $>=$ its right child's and $>$ than its left child's
@@ -814,13 +819,13 @@ field of the nodes:
 This invariant can be almost directly expressed in Lean like so:
 ```lean
 def WF : AATree α → Prop
-  | nil => True
+  | nil => True -- nil has level 0 by definition
   | node _ lvl nil nil => lvl = 1
   | node _ lvl l r =>
     WF l ∧ WF r ∧
     lvl ≥ r.lvl ∧ lvl > l.lvl ∧ (lvl > 1 → (!l.isNil ∧ !r.isNil))
 ```
-The rebalancing operation is done with two auxiliary functions called `skew` and `split`:
+For performing the actual rebalancing operation, AA trees use two auxiliary functions called `skew` and `split`:
 ```lean
 def skew : AATree α → AATree α
   | nil => nil
@@ -858,12 +863,12 @@ WF t → t.skew = t
 WF t → t.split = t
 ```
 )
-On the `WF` ones Chako (correctly) gives up after its default 10 second timeout. For the `mem` ones,
-Nunchaku's solvers report (correctly) that they are generally true. While Chako doesn't provide a
-way to recover these proofs into Lean, this gives the user additional confidence during development.
+For the well-formedness properties, Chako (correctly) times out. For the membership ones,
+Nunchaku's solvers report (also correctly) that they are generally true. Although Chako does not
+provide a way to recover these proofs into Lean, this still provides the user reassurance during development.
 
-With these auxiliary functions in place the insertion operation can be defined almost exactly like
-for primitive binary search trees:
+With these auxiliary functions in place, the insertion operation can be defined almost exactly as
+it is for primitive binary search trees:
 ```lean
 def insert [LT α] [DecidableLT α] (t : AATree α) (x : α) : AATree α :=
   match t with
@@ -876,13 +881,13 @@ def insert [LT α] [DecidableLT α] (t : AATree α) (x : α) : AATree α :=
 In order to keep the tree balanced, the `insert` function must preserve the `WF` invariant:
 ```lean
 theorem WF_insert [TotalOrder α] [DecidableLT α] (t : AATree α) :
-  WF t → WF (t.insert x)
+    WF t → WF (t.insert x)
 ```
-Indeed Chako finds no counter-example for this within its default timeout.
+Indeed Chako finds no counterexample for this within its default timeout.
 
-Let us now introduce a suble bug into the implementation and observe how Chako fairs at detecting it.
-This bug is a simple typo that I unintentionally made during the initial implementation of this
-case study:
+Let us now introduce a suble bug into the implementation and observe how Chako fairs at detecting it:
+#footnote[This bug is a simple typo that I unintentionally made during the initial implementation of this
+case study]
 ```diff
  def skew : AATree α → AATree α
    | nil => nil
@@ -893,11 +898,13 @@ case study:
      else
        node x lvl l r
 ```
-Just like in the bisection example, Chako is made to look for `AATree Nat` counter-examples for
-readability purposes. In this configuration Chako quickly reports `t := node 1 0 nil nil` and `x := 0`.
-To confirm the bug we can run the broken insert operation with the counter-example and get
-`node 1 1 (node 0 1 nil nil) nil`. This tree violates condition 3 of the invariant as the level of
+As in the bisection example, Chako is configured to search for `AATree Nat` counterexamples to keep the
+output readable. In this configuration, Chako quickly reports the counterexample `t := node 1 0 nil nil` and `x := 0`.
+To confirm the bug, we can run the broken `insert` operation with the counterexample, which yields
+`node 1 1 (node 0 1 nil nil) nil`. This tree violates condition 3 of the invariant, since the level of
 the root node is not greater than its left child's.
+
+TODO: If the chance arises it would be great to have a third case study about inductive predicates
 
 #pagebreak(weak: true)
 
