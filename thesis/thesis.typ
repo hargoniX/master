@@ -407,8 +407,8 @@ positive contexts, respectively.
 During predicate elimination, occurrences of $p^-$ are transformed into `rec` definitions whose
 bodies correspond to the right-hand side of the fixpoint equation. This transformation is sound
 because $p$ represents a least fixpoint and is thus overapproximated by $p^-$, which admits any fixpoint:
-$forall overline(x) . p " " overline(x) => p^- " " overline(x)$. By contraposition, soundness for negative contexts follows:
-$forall overline(x) . not p^- " " overline(x) => not p " " overline(x)$.
+$forall overline(x) . p " " overline(x) => p^- " " overline(x)$. From this, soundness for negative contexts follows
+by contraposition: $forall overline(x) . not p^- " " overline(x) => not p " " overline(x)$.
 
 The second case concerns the remaining positive occurrences of $p$. If the recursion in the
 corresponding fixpoint equation is well-founded, the equation has exactly one solution @harrison-indpred.
@@ -451,89 +451,110 @@ rec nat_le+ : nat -> nat -> nat -> prop :=
 
 #pagebreak(weak: true)
 
-= Reduction (12 + 2P) <sect_reduct>
+= Reduction from Lean to Nunchaku (12 + 2P) <sect_reduct>
+Things for this intro:
+- the two main differences between Lean's and Nunchaku's logic are:
+  - Lean's dependent types
+  - Lean's strong polymorphism
+- Reasons why getting rid of them this is hard:
+  - dependent types:
+    - quite obvious: Nunchaku has no idea about them
+  - polymorphism
+    - Lean's polymorphism is not parametric
+    - Identifying whether something is a type/value/prop/proof argument is highly non trivial in general
+    - Lean can compute types
+- For this reason we restrict to the "Depedently typed HOL" like fragment of Lean
+  - rank 1 polymorphism
+  - clear separation of type/value/prop/proof arguments
+  - no type producing functions
+  - write all of this out explicitly and formally, in particular:
+    - define the restricted expression language
+    - define the kind of definitions that we work with
+- As I'm going to demonstrate in @sect_case_studies and @sect_eval this fragment is still sufficient
+  to handle a wide range of definitions in Lean
+- Discuss ordering of DTT elimination and monomorphization
+  - Monomorphizing before eliminating dependent types could yield problems that are easier to handle
+    as we are going to see in @sect_trans_dtt
+  - Monomorphizing code with dependent types is a non trivial operation, in particular if we want to
+    extend towards fancier polymorphism in the way described in @sect_trans_poly
+  - $->$ overall for simplicity reasons I decided to first go with dependent types, then
+    polymorphism
+- In the following sections we are going to work within Lean's logic and remove more and more
+  features from it. For this we assume that we have access to a type inference operation which is
+  practically the case.
+
 == Eliminating Dependent Types (8P) <sect_trans_dtt>
-@nunchakudtt
-
-/*
-Idea: Generate invariant propositions and erase useless things.
-
-Two steps of translation:
-+ Get rid of dependent types in full generality by:
-  - Erasing all proofs
-  - For each dependent type generate a pure nondep data component and an invariant
-  - Replace each occurrence of a dep type with a subtype of the nondep one with that invariant
-  - Replace each occurrence of a type argument with a pair of type argument and predicate over that
-    type (these predicates are threaded (potentially recursively through other functions) into
-    invariants)
-+ Erasing these subtypes by:
-  - in all $forall$ binders in propositional context replacing them with a precondition and a normal
-    binder over the type
-  - in all $forall$ binders in non-prop context just dropping them, reason: The type system
-    guarantees that the functions behind these forall binders are only called with valid arguments
-    anyway
-  - in all $lambda$ binders just dropping them (same reason)
-
-Now we have banished the DTT world into inductive predicates where they are perfectly fine to live
-on.
-
-Interesting duality here: We could also try to monomorphize before doing this invariant
-introduction, in this case the addition of predicates for type arguments would be unnecessary.
-However, monomorphising DTT in full generality seems like a harder problem that this translation.
-
-Note that this even works for nested inductives:
-```lean
-inductive Tree (α : Type) where
-  | nil : Tree α
-  | node (x : α) (xs : List (Tree α)) : Tree α
-
-inductive ListInv (p : α → Prop) : List α → Prop where
-  | nil : ListInv p List.nil
-  | cons (x : α) (hx : p x) (xs : List α) (hxs : ListInv p xs) : ListInv p (x :: xs)
-
-inductive Invariant (p : α → Prop) : Tree α → Prop where
-  | nil : Invariant p Tree.nil
-  | node (x : α) (hx : p x) (xs : List (Tree α)) (hxs : ListInv (Invariant p) xs) : Invariant p (Tree.node x xs)
-```
-
-note: When talking about erasure we could also replace it with `Unit` in order to not change arity
-of symbols, will have to think about it
-
-- type aliases,  it is crucial that this particular part happens everywhere to kill things such as
-  `outParam` for the monomorphization
-- literals
-*/
+- Key challenges:
+  - erase proofs because Nunchaku has no notion of a proof term or argument $->$ only possible in general because of proof irrelvance
+  - erase dependency of types on values
+- For the proofs we will apply a normal proof erasure procedure as already done by the Lean
+  compiler and the Rocq code extractor @coqerasure:
+  - Replace types of proof arguments with a type `Erased`
+  - Replace the proof terms themselves with `erased : Erased`
+- For the erasure of type dependency a further developed instance of the approach presented in the
+  Nunchaku DTT paper @nunchakudtt in turn inspired by @dttold paper
+  - given a dependent type separate it into two other types:
+    - a non dependent type that carries around only the data required
+    - a predicate over this non dependent type + the original value arguments that restraints them
+      as to simulate the original dependent type
+  - inject assumptions that this predicate must hold as necessary
+  - important: This approach can only deal with value indices, not type indices
+- The encoding proposed in @nunchakudtt has two crucial oversights:
+  + The proposed invariant does not handle cases where types (whether they are dependent or not)
+    contain other dependent types: Example with `Vec` specialized on `Fin 0` always being equal to
+    `[]`
+  + The proposed invariant does not handle types that are generic correctly: Example with
+    `Vec (Fin 0) n` always being equal to `[]`
+- To fix these:
+  + While defining the invariant also take into account that the invariants for all other
+    types that get bound in the constructor must hold
+  + Generic types are a delayed obligation for an invariant that we will model by letting the
+    invariant take a predicate for each of its generic types
+- Present the invariant generation algorithm and the new inductive generation algorithm:
+  - transformation on types
+  - crucial: this algorithm is mutually recursive with the expression eliminator, already define its
+    prototype and say we will define it later
+- example with now correctly translated `Vec (Fin 0) n`
+- move on to expression transformer:
+  - key question: where to insert the invariants
+  - answer: whenever a piece of data is bound by a universal quantifier
+  - point out we already did this when generating the invariants
+  - reason: Given that we are operating on a well typed problem all expressions that are being
+    constructed do already fulfill the invariants. However, universal quantification opens the
+    chance for Nunchaku to synthesize terms of the eliminated data type that do not fulfill the
+    invariants. In order to prevent this we need to restrain those quantifiers.
+- constant transformer:
+  - inductive predicates
+  - definitions
+- optimization: elimination of trivially true invariants:
+  - refer back to the invariant generated for `Nat`
+  - intuition: when an inductive type does not refer to a dependent type transitively its invariant
+    is trivial and can be erased. Similarly if a function type does not produce such a type its
+    invariant can be erased
+  - show inference algorithm
+- unsoundness with function extensionality:
+  - fixable but likely to destroy performance
 
 == Eliminating Polymorphism (4P) <sect_trans_poly>
+- This leaves us in a non dependent fragment of Lean with "easy" polymorphism
+  - $->$ in principle we could translate to Nunchaku right away and let it handle the rest
+  - but: Lean's polymorphism is in principle much more expressive and I want to keep the opportunity
+    to make this extension in the future
+  - Recent work has been made in @monotypeflow towards extending monomorphization to higher ranked
+    and existential polymorphism
+  - $->$ implement this work for the rank 1 fragment in Lean to allow potential extensions in the
+    future
+  - nice bonus: Can determine solvability ahead of time
+- exposition about type flow analysis
+  - collect constraints on types like in data flow analysis
+  - solve them using a fixpoint iterator
+  - instantiate the solution to get a generics-free program
+- show my type flow analysis
+- talk about solvability
+  - introduce new solvability check algorithm
+- talk about how to apply the result
 
 /*
-This leaves us with an expression language consisting of:
-$
-  e := x | c | U_n | e " " e | forall (x : e), e | lambda (x : e), e
-$
-where $c$ can be:
-- `inductive`
-- `ctor`
-- `def`
-- `opaque`
-
-TODO: cleanup step about about local type variables
-
-Lean does allow for a much more general kind of polymorphism than Nunchaku can handle, in
-particular:
-- existential types
-- higher ranked polymorphism
-- non parametric polymorphism
-- functions can compute types
-  - due to this it can even be entirely unclear whether an argument is a value or type argument to
-    begin with as this may depend on computation performed on other input parameters
-  - TODO: our DTT eliminator already gives up on this but it is still interesting to consider this:
-
-While things like existential types have been believed to be non monomorphisable recent advances in
-this area @monotypeflow have demonstrated that a much wider range of type systems than previously
-thought are admissible to monomorphization.
-
-TODO: exposition about type flow analysis
 
 For simplicity we consider all type arguments to be in the beginning. Furthermore type parameters
 of the constructor of a generic type have the parameters for the type itself first and potential
@@ -886,7 +907,7 @@ theorem WF_insert [TotalOrder α] [DecidableLT α] (t : AATree α) :
 Indeed Chako finds no counterexample for this within its default timeout.
 
 Let us now introduce a suble bug into the implementation and observe how Chako fairs at detecting it:
-#footnote[This bug is a simple typo that I unintentionally made during the initial implementation of this
+#footnote[This bug is a typo that I unintentionally made during the initial implementation of this
 case study]
 ```diff
  def skew : AATree α → AATree α
@@ -909,28 +930,42 @@ TODO: If the chance arises it would be great to have a third case study about in
 #pagebreak(weak: true)
 
 = Evaluation (2-3P) <sect_eval>
-/*
-- Large scale data:
-  - evaluating on a chunk of lean stdlib + custom written libraries whether the system appears to
-    be sound in practice despite its defficencies
-  - mutating those theorems into false ones then evaluating on them to figure out counter example
-    finding rate
-*/
+- This section aims at 2 things:
+  + Demonstrate that, despite the lack of proof and the known issues with the encoding Chako is at
+    least empirically sound most of the time
+  + Demonstrate its performance on a larger scale data set by evaluating it on the theories from
+    stdlib
+- For soundness:
+  - run Chako on theorems from stdlib with its default timeout and see if we get any SAT
+  - show data
+  - blame SAT on Kodkod encoding
+- For performance:
+  - take same theorems from stdlib and mutate them:
+    - replacing certain constants
+    - typoing free variables
+    - dropping assumption
+    - crucial: any of these activities may produce ill typed theorems due to dependent types so we
+      only allow those mutants in that pass a type check
+  - present data
+  - explain results:
+    - UNSAT is because some theorems remain true even when mutated (give a few examples)
+    - large amount of encoding errors in `Array` is because the higher order functions of `Array`
+      are first defined as generic monadic ones and then specialized on the `Id` monad for their
+      pure variants $->$ higher kinded type polymorphism $->$ not possible at the moment
+  - cactus plot?
+- If too much space: ablation study with taking away solvers
 
 #pagebreak(weak: true)
 = Outlook (1P) <sect_outlook>
-/*
-- Dealing with the function extensionality issue:
-  - maybe by trying to eliminate the other way around
-    - challenges that might arise from that so far unclear but things like existential type
-      elimination likely gets a lot harder
-- Further optimizing problems generated by nunchaku for solvers, it's still not quite on a level
-  with what nitpick can do in isabelle
-- Supporting more kinds of polymorphism:
-  - HKTs
-  - polymorphism over dependent types
-  - existentials
-*/
+Things for future work:
+- extending the fragment of Lean that is supported:
+  - allowing for type producing functions
+  - allowing for higher kinded / higher ranked / existential polymorphism
+- maybe experiment eliminating the other way around, this would in particular resolve:
+  - function extensionality
+  - make problems with generic types easier to generate invariants for
+- Further optimizing the problems Nunchaku generates for solvers as well as finding and fixing more
+  bugs in the pipeline
 
 #v(15pt)
 #[Total characters counted excluding code blocks: #total-characters] <no-wc>
