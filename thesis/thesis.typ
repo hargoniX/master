@@ -56,9 +56,9 @@ An increasingly popular approach to tackling this challenge is the use of @ITP s
 Lean @lean4, Isabelle (TODO: what's the canonical Isabelle citation), and Rocq @rocq. However, developing correctness proofs
 in these systems at the same time as developing definitions and theorem statements can turn out to
 be quite frustrating. Often times definitions turn out to be subtly wrong or hypotheses in theorems
-need to be strengthened in order to make them provable. Counterexample-finding techniques can help
-mitigate this problem by helping users identify such issues early, before significant time is wasted
-on unprovable goals.
+need to be strengthened to make them provable. This problem can be partially mitigated through the
+use of counterexample-finding techniques. These techniques can help users identify such issues early,
+before significant time is wasted on unprovable goals.
 
 For this reason, a variety of counterexample-finding techniques have been incorporated into @ITP
 systems over the years. For example, Isabelle provides support for random testing,
@@ -70,7 +70,7 @@ statement for specific input values. This procedure is then executed repeatedly 
 to search for counterexamples. While this technique is quite effective in general, it does have a
 crucial limitation: If the inputs to the theorems are constrained by complicated invariants, it can
 be quite difficult to generate candidates for evaluation that satisfy these preconditions.
-For such theorems, finite model finders like Nitpick shine. Nitpick reduces the original theorem to
+For such theorems, finite model finders such as Nitpick shine. Nitpick reduces the original theorem to
 SAT and invokes a SAT solver to search for counterexamples. The SAT solver can then search for
 inputs with invariants more directly, rather than relying on random generation to eventually find them.
 
@@ -96,7 +96,7 @@ an implementation of random testing, such as Isabelle's Quickcheck @quickcheck, 
 QuickChick @quickchick. The main strength of this approach is performance: Computers can generate and
 evaluate many candidates within a short time span. As previously explained, the main weakness
 is theorems with complex constraints on the input space that make it hard to generate valid inputs.
-In order to counteract this, Isabelle, ACL2, and Rocq @quickchick-multirelations
+In order to counteract this, Isabelle's Quickcheck, ACL2, and later iterations of Rocq's QuickChick @quickchick-multirelations
 implement techniques to derive generators for inputs that are constrained by certain kinds of
 inductive relations.
 
@@ -104,17 +104,19 @@ Another concrete execution technique is bounded exhaustive testing, implemented 
 QuickChick extension @boundex-coq and in Isabelle's Quickcheck. Bounded exhaustive testing
 generates and tests all possible inputs to a conjecture up to a certain bound (e.g. term size).
 Unlike random testing, this ensures that all potentially relevant inputs within the search
-space are actually tested. The main limitation is that we can only feasibly test up to a rather
-small bound so big counterexamples will usually be missed.
+space are actually tested. The main limitation is that the search space can often only be fully
+explored up to a small bound within a small time frame. This causes bounded exhaustive testing to
+usually miss larger counterexamples.
 
 A fundamental limitation of systems that rely purely on concrete execution is the inability to
 refute propositions that are not executable. For example, to demonstrate that
 $forall n : NN. exists m : NN. n + m = m$ is false using concrete execution, the system would
-have to generate a value for $n$ and then try all possible values for $m$. Issues like this can be
-addressed with techniques that make use of symbolic reasoning. Between the fully symbolic and fully
-concrete ends of the spectrum, Isabelle's Quickcheck also implements a narrowing-based approach. The idea
-of narrowing is to symbolically evaluate the proposition with partially instantiated terms first
-and then refine them until a counterexample can be found.
+need to generate a value for $n$ and then try all possible values for $m$. Issues such as this can be
+addressed with techniques that make use of symbolic reasoning.
+
+Between the fully symbolic and fully concrete ends of the spectrum, Isabelle's Quickcheck also
+implements a narrowing-based approach. The idea of narrowing is to symbolically evaluate the
+proposition with partially instantiated terms first and then refine them until a counterexample can be found.
 
 On the far symbolic end of the spectrum, we can find techniques that perform reductions to SAT or SMT
 solvers. These techniques can roughly be separated into finite model finding and counterexample-producing
@@ -253,7 +255,7 @@ to infer it from the other parameters. For example, the `List.length` function i
 will attempt to infer its type parameter `α` by inspecting the type of `xs`. Parameters written as
 `[x : A]` are resolved using type class inference. Type classes are ordinary `inductive`s or
 `structure`s that are tagged as a `class`. Type class inference performs a Prolog-like search
-@tabled-typeclass through definitions of such classes that have been tagged as an `instance`.
+@tabled-typeclass through definitions of class types that have been tagged as an `instance`.
 
 The type class system is frequently used to provide user-extensible notations.
 This is usually done by introducing a type class with a function field together with a notation that
@@ -289,7 +291,7 @@ Unfortunately, no publication about the overall design of Nunchaku has been made
 Therefore, the following section is largely based on reading the implementation and talking to
 its authors.
 
-Nunchaku's type and term language is based on @HOL, enriched with a lot of built-in concepts. The
+Nunchaku's type and term language is based on @HOL, enriched with several built-in concepts. The
 relevant fragment for this work is given by the following grammar:
 $
   tau ::=& "type" | "prop" | tau -> tau | c " " overline(tau) | Pi x . tau  \
@@ -340,7 +342,7 @@ goal ~odd (add n m).
 )
 
 In order to solve these problems, Nunchaku applies long pipelines of reduction passes that eventually
-end up in the input logic of its solvers. With the CVC4 pipeline alone containing 21 passes,
+end up in the input logics of its solvers. With the CVC4 pipeline alone containing 21 passes,
 explaining the pipelines in full would be far out of scope for this work. Instead, the following
 description focuses on the key steps relevant for the design of the reduction from Lean to
 Nunchaku.
@@ -369,7 +371,7 @@ val xs : list.
 goal map (add Z) xs != xs.
 ```
 As we can see in the definition of `map`, the higher-order argument `f` always remains fixed in
-recursive calls. For this reason, Nunchaku will decide to create a copy of `map`, specialized on the
+recursive calls. For this reason, Nunchaku decides to create a copy of `map`, specialized on the
 `add Z` function. This transformation turns the problem into an entirely first order one:
 ```nun
 rec map_spec : list -> list :=
@@ -400,11 +402,11 @@ it underspecifies $p$. However, there are two cases for which this is sound.
 
 The first case concerns negative occurrences of $p$. To identify these, Nunchaku performs a
 preprocessing step called polarization before predicate elimination. The polarizer traverses the
-problem and determines the polarity in which applications of inductive predicates appear.
+problem and determines the polarity in which applications of inductive predicates occur.
 Each predicate $p$ is then replaced by two variants, $p^-$ and $p^+$, used in negative and
 positive contexts, respectively.
 
-During predicate elimination, occurrences of $p^-$ are transformed into `rec` definitions whose
+During predicate elimination, occurrences of $p^-$ get transformed into `rec` definitions whose
 bodies correspond to the right-hand side of the fixpoint equation. This transformation is sound
 because $p$ represents a least fixpoint and is thus overapproximated by $p^-$, which admits any fixpoint:
 $forall overline(x) . p " " overline(x) => p^- " " overline(x)$. From this, soundness for negative contexts follows
