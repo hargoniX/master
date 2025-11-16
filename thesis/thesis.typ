@@ -140,18 +140,18 @@ nowadays maintained by the Lean FRO with many open-source contributions by other
 proving side, Lean's logic is a dependent type theory based on the Calculus of Inductive Constructions @coc @cic.
 This base calculus is extended with several axioms, most notably quotients, function extensionality, and
 choice. A thorough theoretical description of Lean's logic and its properties can be found
-in the work of #cite(<mario-type-theory>, form: "prose") and #cite(<sebastianphd>, form: "prose").
+in the work of Carneiro @mario-type-theory and Ullrich @sebastianphd.
 
 The syntax of Lean's core expression language is given by the grammar:
 $
-  e ::= x | c | e " " e | lambda x : e . e | "let" x := e; e | forall x : e. e | "Sort" u
+  e ::= x | c | e " " e | lambda x : e . e | "let" x : e := e; e | (x : e) -> e | "Sort" u
 $
 Just like the simply typed lambda calculus, it contains variables, constants, function application,
 function abstraction, and let abstraction. Unlike the simply typed lambda calculus, it does not have a function
-type $A -> B$ but instead the dependent function type $forall x : A . B$. The crucial
+type $A -> B$ but instead the dependent function type $(x : A) -> B$. The crucial
 difference being that the _term_ variable $x$ may occur in the _type_ $B$, we say $B$ depends on
 $x$. For example, we can denote the type of functions that take a natural number $n$ and return a number
-less than $n$ as $forall n : NN, "Fin" n$. If $B$ does not depend on $x$, we usually write just
+less than $n$ as $(n : NN) -> "Fin" n$. If $B$ does not depend on $x$, we usually write just
 $A -> B$ instead.
 
 Lean supports several kinds of constants, with the most prominent ones being definitions, theorems,
@@ -294,14 +294,14 @@ its authors.
 Nunchaku's type and term language is based on @HOL, enriched with several built-in concepts. The
 relevant fragment for this work is given by the following grammar:
 $
-  tau ::=& "type" | "prop" | tau -> tau | c " " overline(tau) | Pi x . tau  \
-  t ::=& c | x | t " " t | lambda x : tau . t | "let" x := t; t | forall x : tau . t | exists x : tau . t \
-    & | top | bot | not t | t or t | t and t | t => t | t = t | "if" t "then" t "else" t \
+  alpha ::=& "type" | "prop" | x | alpha -> alpha | c " " overline(alpha) | Pi x . alpha & "   " & "types"  \
+  t ::=& c | x | t " " t | lambda x : alpha . t | "let" x : alpha := t; t | forall x : alpha . t | exists x : alpha . t \
+    & | top | bot | not t | t or t | t and t | t => t | t = t | "if" t "then" t "else" t & "   " & "terms" \
 $
 
 The terms $t$ range over the usual connectives of simply typed lambda calculus, extended with
-basic quantifiers and propositional connectives. The types $tau$ consist of the universe of types,
-the universe of propositions, function types, constants applied to type arguments ($overline(tau)$
+basic quantifiers and propositional connectives. The types $alpha$ consist of the universe of types,
+the universe of propositions, type variables, function types, constants applied to type arguments ($overline(alpha)$
 denotes a sequence of type arguments), and abstraction over type arguments.
 
 The primary commands used to describe a Nunchaku problem are `val`, `axiom`, and `goal`.
@@ -352,7 +352,7 @@ removes all polymorphism by creating specialized copies of polymorphic constants
 the type arguments they are used with. To simplify this process, Nunchaku imposes two restrictions
 on its polymorphism. First, it supports only ML-style rank-1 polymorphism, meaning that a function
 can be polymorphic, but it cannot take an argument that is itself polymorphic. Second, it does
-not support higher-kinded polymorphism: $Pi$ may abstract over types but not type constructors.
+not support higher-kinded types: $Pi$ may abstract over types but not type constructors.
 
 After eliminating polymorphism, Nunchaku performs a few additional passes to remove other
 convenience features before arriving at the specialization pass. Specialization is an optimization
@@ -386,7 +386,7 @@ The last important pass for this work is the elimination of `pred` into `rec`. I
 inspired by the encoding of inductive predicates used by Nitpick @nitpickpred. The encoding is
 based on the fact that given an inductive predicate $p$ of the shape:
 $
-  & "pred" p : tau_1 -> ... -> tau_m -> "prop" "where" \
+  & "pred" p : alpha_1 -> ... -> alpha_m -> "prop" "where" \
   & forall overline(y)_1 . p " " overline(t)_11 and ... and p " " overline(t)_(1cal(l)_1) and Q_1 => p " " overline(u)_1 \
   & dots.v \
   & forall overline(y)_n . p " " overline(t)_(n 1) and ... and p " " overline(t)_(n cal(l)_n) and Q_n => p " " overline(u)_n\
@@ -454,26 +454,169 @@ rec nat_le+ : nat -> nat -> nat -> prop :=
 #pagebreak(weak: true)
 
 = Reduction from Lean to Nunchaku (12 + 2P) <sect_reduct>
-Things for this intro:
-- the two main differences between Lean's and Nunchaku's logic are:
-  - Lean's dependent types
-  - Lean's strong polymorphism
-- Reasons why getting rid of them this is hard:
-  - dependent types:
-    - quite obvious: Nunchaku has no idea about them
-  - polymorphism
-    - Lean's polymorphism is not parametric
-    - Identifying whether something is a type/value/prop/proof argument is highly non trivial in general
-    - Lean can compute types
-- For this reason we restrict to the "Depedently typed HOL" like fragment of Lean
-  - rank 1 polymorphism
-  - clear separation of type/value/prop/proof arguments
-  - no type producing functions
-  - write all of this out explicitly and formally, in particular:
-    - define the restricted expression language
-    - define the kind of definitions that we work with
-- As I'm going to demonstrate in @sect_case_studies and @sect_eval this fragment is still sufficient
-  to handle a wide range of definitions in Lean
+Designing a reduction from Lean's logic into Nunchaku's logic requires addressing the two key
+differences between the logics: Lean's dependent types and Lean's more expressive polymorphism.
+Instead of attempting to handle both of these in full generality, this section identifies
+a fragment of Lean that is reasonably easy to translate and defines a reduction for this
+fragment.
+
+The differences between Lean's and Nunchaku's polymorphism are manifold. On the tamer side, Lean
+supports many constructs that are present in other functional languages such as Haskell.
+For example, it allows higher-ranked polymorphism, meaning that a function may take another
+polymorphic function as an argument, e.g., `Nat → ((α : Type) → α → α) → Nat`. Lean also supports
+higher-kinded types, which enable abstraction over type constructors, e.g.,
+`(f : Type → Type) → f a → (a → b) → f b`. Finally, Lean provides existential types,
+allowing constructors to bind type arguments, e.g., a type `Dynamic : Type 1` may have a constructor
+of type `(α : Type) → α → Dynamic`.
+
+Beyond these more "common" constructs, Lean also allows for arbitrary computation with types. For example,
+we can define the type of $n$-ary products of natural numbers:
+```lean
+def NProd (n : Nat) : Type :=
+  match n with
+  | 0 => Unit
+  | n + 1 => Nat × NProd n
+```
+Lastly, Lean makes it non-trivial to identify whether a function even has a type parameter by
+unifying `Prop` and `Type u` in `Sort u`.
+
+Instead of trying to encode all of these constructs into Nunchaku's logic, I will now define a
+smaller fragment of Lean. This fragment will serve as the input for the reduction to Nunchaku.
+The rationale for this is that, while all of these features are sometimes
+useful, many Lean formalizations do not require them at all. Thus, handling a smaller fragment of
+Lean can still yield a tool that is useful for many Lean users.
+
+This fragment is akin to a "dependently typed @HOL" restriction of Lean. It supports only
+rank 1 polymorphism, maintains a clearly decidable separation of types, values, propositions, and
+proofs, and forbids type-producing functions. The consequence of these requirements for
+the expression syntax is the need for a clear distinction between $"Prop"$ and $"Type" u$, given by the following
+grammar:
+$
+Gamma & ::= Gamma, x : e | epsilon & "   " & "contexts" \
+e &::= x | c | e " " e | lambda x : e . e | "let" x : e := e; e | (x : e) -> e | "Prop" | "Type" u & "   " & "expressions"
+$
+Given that this is a mere syntactic restriction of Lean's core calculus, we can reuse Lean's type
+system with the typing judgment $Gamma tack e : e$.
+In the following description of the further restrictions on the fragment, I will use $x, y, z$ to
+denote variables; $alpha, beta, gamma$ to denote type expressions; $s, t, u$ to denote value
+expressions; and $e$ to denote expressions that might be both. This convention for expressions carries no semantic meaning on its
+own and is merely meant to aid in reading. However, the restrictions put on the expressions will enforce
+a match between insinuated and actual meaning. When convenient, I will denote the dependent function type as
+$forall x : alpha. t$ instead.
+
+For constants, the fragment uses the previously introduced definitions and inductive types. To avoid
+working with Lean's desugaring of recursive definitions, we will only consider definitions by
+a list of equations, like Nunchaku. In practice these equations are automatically computed (and verified)
+by Lean upon the declaration of a new definition.
+#grid(
+  columns: (1fr, 1fr),
+  align: center,
+$
+& "def" c : alpha "where" \
+& forall overline(x)_1 : overline(beta)_1. c " " overline(e)_1 = u_1 \
+& dots.v \
+& forall overline(x)_n : overline(beta)_n. c " " overline(e)_n = u_n \
+$,
+$
+& "inductive" c " " (overline(x) : overline(alpha)) : beta "where" \
+& "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " " overline(x) " " overline(t)_1 \
+& dots.v \
+& "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " " overline(x) " " overline(t)_n \
+$
+)
+Observe that the type of an inductive is split into two parts: $(overline(x) : overline(alpha))$ and
+$beta$. The $overline(x)$ part is called the _parameters_ of $c$ and remains fixed across all
+constructors. If $beta$ contains additional arguments, they are called the _indices_ of $c$ and may vary across
+constructors.
+
+To impose the restriction of rank-1 polymorphism on this calculus, I use a notion of
+monotypes $tack alpha "mono"$ and polytypes $tack alpha "poly"$, similar to Jones et al. @higherrankedspj.
+Because types can depend on terms, defining them also requires a notion of monoterms $tack t "monot"$: 
+
+#align(center, [
+  #box(proof-tree(inf-rule(
+    $tack c "mono"$,
+    $c "is an inductive type"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack x "mono"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack "Prop" "mono"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack alpha " " beta "mono"$,
+    $tack alpha "mono"$,
+    $tack beta "mono"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack alpha " " t "mono"$,
+    $tack alpha "mono"$,
+    $tack t "monot"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack t " " alpha "monot"$,
+    $tack t "monot"$,
+    $tack alpha "mono"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack (x : alpha) -> beta "mono"$,
+    $tack alpha "mono"$,
+    $tack beta "mono"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack alpha "poly"$,
+    $tack alpha "mono"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack (x : alpha) -> beta "poly"$,
+    $tack alpha "mono"$,
+    $tack beta "poly"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack (x : "Type" u) -> beta "poly"$,
+    $tack beta "poly"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack c "monot"$,
+    $c "is a definition"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack x "monot"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $tack t " " u "monot"$,
+    $tack t "monot"$,
+    $tack u "monot"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $lambda x : alpha . t "monot"$,
+    $tack alpha "mono"$,
+    $tack t "monot"$,
+  )))
+  #box(proof-tree(inf-rule(
+    $"let" x : alpha := t; u "monot"$,
+    $tack alpha "mono"$,
+    $tack t "monot"$,
+    $tack u "monot"$,
+  )))
+])
+
+Using these restrictions on terms and types, we can extend Lean’s usual constraints on constant
+declarations to obtain the target fragment. First, the type $alpha$ of a definition must satisfy
+$epsilon tack alpha : "Type" u$ and be a polytype; each equation $"eq"_i$ must likewise satisfy
+$epsilon tack "eq"_i : "Prop"$ and also be a polytype.
+Second, the overall type of an inductive $(overline(x) : overline(alpha)) -> beta$ must
+satisfy $epsilon tack (overline(x) : overline(alpha)) -> beta : "Type" u$ and be a polytype, with the relaxation
+that the rightmost arrow of $beta$ may produce a $"Type u"$. Furthermore, each constructor $"ctor"_i$ must
+satisfy $epsilon tack (overline(x) : overline(a)) -> (overline(y)_i : overline(gamma)_i) -> c " " overline(x) " " overline(t)_i : alpha$
+where $alpha$ is either $"Type" u$ or $"Prop"$, and must additionally satisfy $tack (overline(y)_i : overline(gamma)_i) -> c " " overline(x) " " overline(t)_i "mono"$
+to rule out existential types. Finally, all index arguments $overline(t)_i$ appearing in the constructor’s target type must be monoterms.
+
+In the remainder of this section I will describe the reduction from this restricted fragment
+of Lean to the input logic of Nunchaku.
+
+== Eliminating Dependent Types (8P) <sect_trans_dtt>
 - Discuss ordering of DTT elimination and monomorphization
   - Monomorphizing before eliminating dependent types could yield problems that are easier to handle
     as we are going to see in @sect_trans_dtt
@@ -481,11 +624,6 @@ Things for this intro:
     extend towards fancier polymorphism in the way described in @sect_trans_poly
   - $->$ overall for simplicity reasons I decided to first go with dependent types, then
     polymorphism
-- In the following sections we are going to work within Lean's logic and remove more and more
-  features from it. For this we assume that we have access to a type inference operation which is
-  practically the case.
-
-== Eliminating Dependent Types (8P) <sect_trans_dtt>
 - Key challenges:
   - erase proofs because Nunchaku has no notion of a proof term or argument $->$ only possible in general because of proof irrelvance
   - erase dependency of types on values
@@ -528,7 +666,7 @@ Things for this intro:
 - constant transformer:
   - inductive predicates
   - definitions
-- optimization: elimination of trivially true invariants:
+- optimization (put this into implementation if we don't have enough space): elimination of trivially true invariants:
   - refer back to the invariant generated for `Nat`
   - intuition: when an inductive type does not refer to a dependent type transitively its invariant
     is trivial and can be erased. Similarly if a function type does not produce such a type its
