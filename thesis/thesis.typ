@@ -74,7 +74,7 @@ For such theorems, finite model finders such as Nitpick shine. Nitpick reduces t
 SAT and invokes a SAT solver to search for counterexamples. The SAT solver can then search for
 inputs with invariants more directly, rather than relying on random generation to eventually find them.
 
-In this thesis I describe the first finite model finding approach, integrated with a dependently
+In this thesis I describe the first finite model finding approach that is integrated with a dependently
 typed theorem prover, namely Lean. The core contribution is the reduction of a practically relevant
 fragment of Lean to the input logic of Nitpick's spiritual successor, Nunchaku @nunchakudtt.
 First I describe the general idea behind the reduction in @sect_reduct.
@@ -454,8 +454,8 @@ rec nat_le+ : nat -> nat -> nat -> prop :=
 #pagebreak(weak: true)
 
 = Reduction from Lean to Nunchaku (12 + 2P) <sect_reduct>
-Designing a reduction from Lean's logic into Nunchaku's logic requires addressing the two key
-differences between the logics: Lean's dependent types and Lean's more expressive polymorphism.
+Designing a reduction from Lean's logic into Nunchaku's requires addressing the two key
+differences between them: Lean's dependent types and Lean's more expressive polymorphism.
 Instead of attempting to handle both of these in full generality, this section identifies
 a fragment of Lean that is reasonably easy to translate and defines a reduction for this
 fragment.
@@ -579,7 +579,7 @@ Because types can depend on terms, defining them also requires a notion of monot
   )))
   #box(proof-tree(inf-rule(
     $tack c "monot"$,
-    $c "is a definition"$,
+    $c "is a def or ctor"$,
   )))
   #box(proof-tree(inf-rule(
     $tack x "monot"$,
@@ -617,20 +617,26 @@ In the remainder of this section I will describe the reduction from this restric
 of Lean to the input logic of Nunchaku.
 
 == Eliminating Dependent Types (8P) <sect_trans_dtt>
-- Discuss ordering of DTT elimination and monomorphization
-  - Monomorphizing before eliminating dependent types could yield problems that are easier to handle
-    as we are going to see in @sect_trans_dtt
-  - Monomorphizing code with dependent types is a non trivial operation, in particular if we want to
-    extend towards fancier polymorphism in the way described in @sect_trans_poly
-  - $->$ overall for simplicity reasons I decided to first go with dependent types, then
-    polymorphism
-- Key challenges:
-  - erase proofs because Nunchaku has no notion of a proof term or argument $->$ only possible in general because of proof irrelvance
-  - erase dependency of types on values
-- For the proofs we will apply a normal proof erasure procedure as already done by the Lean
-  compiler and the Rocq code extractor @coqerasure:
-  - Replace types of proof arguments with a type `Erased`
-  - Replace the proof terms themselves with `erased : Erased`
+The first step of the reduction is the elimination of dependent types. Doing this before handling
+polymorphism is not at all an obvious choice. In fact, as I am going to show, removing polymorphism
+first and handling dependent types later might even yield a better reduction. The reason for
+choosing to eliminate dependent types first despite this is simplicity. With this ordering only one step has to
+deal with dependent types while the other way around both steps have to.
+
+Dependent types generally occur in two flavors in the input fragment. First, a function or
+inductive might take an argument that is a proof. This is an issue because Nunchaku has no notion of proof terms at
+all so they need to be removed. Second, an inductive type may have term arguments.
+If the inductive type lives in $"Prop"$, this is not an issue because Nunchaku's inductive
+predicates work with term parameters. On the other hand, if the inductive lives in $"Type" u$
+the term arguments need to be removed as well.
+
+For handling proof terms we can make use of Lean's proof irrelevance. Because the concrete value of
+a proof term cannot change the semantics of a program, they can be erased. This technique of _proof
+erasure_ is a well established approach and is used by both the Lean code generator and the Rocq code
+extractor @coqerasure already. The core idea is to introduce a new type $"Erased"$
+with a single inhabitant $qed : "Erased"$. Then when a proof term needs to be removed we can replace
+it with $qed$ and if a binder binds a proof we can replace the bound type with $"Erased"$.
+
 - For the erasure of type dependency a further developed instance of the approach presented in the
   Nunchaku DTT paper @nunchakudtt in turn inspired by @dttold paper
   - given a dependent type separate it into two other types:
