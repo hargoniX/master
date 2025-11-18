@@ -637,30 +637,111 @@ extractor @coqerasure already. The core idea is to introduce a new type $"Erased
 with a single inhabitant $qed : "Erased"$. Then when a proof term needs to be removed we can replace
 it with $qed$ and if a binder binds a proof we can replace the bound type with $"Erased"$.
 
-- For the erasure of type dependency a further developed instance of the approach presented in the
-  Nunchaku DTT paper @nunchakudtt in turn inspired by @dttold paper
-  - given a dependent type separate it into two other types:
-    - a non dependent type that carries around only the data required
-    - a predicate over this non dependent type + the original value arguments that restraints them
-      as to simulate the original dependent type
-  - inject assumptions that this predicate must hold as necessary
-  - important: This approach can only deal with value indices, not type indices
-- The encoding proposed in @nunchakudtt has two crucial oversights:
-  + The proposed invariant does not handle cases where types (whether they are dependent or not)
-    contain other dependent types: Example with `Vec` specialized on `Fin 0` always being equal to
-    `[]`
-  + The proposed invariant does not handle types that are generic correctly: Example with
-    `Vec (Fin 0) n` always being equal to `[]`
-- To fix these:
-  + While defining the invariant also take into account that the invariants for all other
-    types that get bound in the constructor must hold
-  + Generic types are a delayed obligation for an invariant that we will model by letting the
-    invariant take a predicate for each of its generic types
+The elimination of dependent inductive types expands on prior work by Cruanes and Blanchette
+@nunchakudtt. Their approach takes a dependent inductive type and generates two new types, a non-dependent
+version for carrying the data and an inductive predicate to restrict the shape the data
+to as required by the dependent type. Then, the dependent type gets replaced with the non-dependent one
+and the predicate is enforced upon it as needed.
+
+To generate this inductive predicate they consider an inductive type of the form:
+$
+& "inductive" c " " overline(alpha) " " overline(t) : "Type" u "where" \
+& "ctor"_1 : (overline(x)_1 : overline(beta)_1) -> (overline(y)_1 : c " " overline(alpha) " " overline(s)_1) -> c " " overline(alpha) " " overline(u)_1 \
+& dots.v \
+& "ctor"_n : (overline(x)_n : overline(beta)_n) -> (overline(y)_n : c " " overline(alpha) " " overline(s)_n) -> c " " overline(alpha) " " overline(u)_n \
+$
+Where $overline(alpha)$ are the type parameters of $c$, $overline(t)$ the term arguments of $c$,
+$overline(y)$ the recursive occurrences of $c$ in its constructors and $overline(x)$ the remaining
+constructor arguments. From this, they derive an inductive type $c' " " overline(alpha) : "Type" u$
+which drops all term arguments, together with an invariant $"inv"_c$:
+$
+& "inductive" "inv"_c " " overline(alpha) : overline(t) -> c' " " overline(alpha) -> "Prop" "where" \
+& "invctor"_1 :
+  (overline(x)_1 : overline(beta)_1) ->
+  (overline(y)_1 : c' " " overline(alpha) " ") ->
+  (overline(h)_1 : "inv"_c " " overline(alpha) " " overline(s)_1 " " overline(y)_1) ->
+  "inv"_c " " overline(alpha) " " overline(u)_1  " " ("ctor"_1 " " overline(alpha)) \
+& dots.v \
+& "invctor"_n :
+  (overline(x)_n : overline(beta)_n) ->
+  (overline(y)_n : c' " " overline(alpha) " ") ->
+  (overline(h)_n : "inv"_c " " overline(alpha) " " overline(s)_n " " overline(y)_n) ->
+  "inv"_c " " overline(alpha) " " overline(u)_n  " " ("ctor"_n " " overline(alpha)) \
+$
+The main idea of $"inv"_c$ is to have one introduction rule per constructor of $c$ to restrict the
+term arguments of $c$. Furthermore, all recursive occurrences of $c$ get restricted by enforcing the
+invariant recursively for them as well.
+
+However, this invariant is incorrect in at least two ways. To demonstrate this, let us consider
+a counterexample, consisting of the types `Fin n` of natural numbers less than `n` and `Vec n` of lists
+with length `n`:
+```lean
+inductive Fin (n : Nat) : Type where
+  | mk (val : Nat) (h : val < n)
+
+inductive Vec : Nat → Type where
+  | nil : Vec 0
+  | cons (n : Nat) (x : Fin 0) (xs : Vec n) : Vec (n + 1)
+```
+Note that this particular version of `Vec` only carries values of `Fin 0`. Because there are no numbers less
+than zero, we can prove that for every `xs : Vec n` we have `xs = nil`. The invariant generated for
+`Vec` would be:
+```lean
+inductive Fin' : Type where
+  | mk (val : Nat)
+
+inductive Vec' : Type where
+  | nil : Vec'
+  | cons (n : Nat) (x : Fin 0) (xs : Vec') : Vec'
+
+inductive VecInv : Nat → Vec' → Prop where
+  | nil : VecInv 0 Vec'.nil
+  | cons (n : Nat) (x : Fin') (xs : Vec') (h : VecInv n xs)
+    : VecInv (n + 1) (Vec'.cons n x xs)
+```
+Observe that this fails to restrict `x` to be a number less than zero, allowing for `Vec'`
+of any length to fulfill the invariant. This issue leads us to the first insight: We must also enforce
+invariants of all other constructor arguments.
+
+The second issue concerns polymorphic types. This can be shown using a generalized version of `Vec`:
+```lean
+inductive Vec (α : Type) : Nat → Type where
+  | nil : Vec α 0
+  | cons (n : Nat) (x : α) (xs : Vec α n) : Vec α (n + 1)
+```
+The corresponding invariant is:
+```lean
+inductive Vec' (α : Type) : Type where
+  | nil : Vec' α
+  | cons (n : Nat) (x : Fin 0) (xs : Vec' α) : Vec' α
+
+inductive VecInv (α : Type) : Nat → Vec' α → Prop where
+  | nil : VecInv α 0 Vec'.nil
+  | cons (n : Nat) (x : α) (xs : Vec' α) (h : VecInv α n xs)
+    : VecInv α (n + 1) (Vec'.cons n x xs)
+```
+The previous counterexample can also be generalized to this invariant as `Vec (Fin 0) n`. Once
+again, the invariant fails to restrict the `x`. However, it is unclear what the invariant for a
+`α` should even be to begin with. This leads us to the second insight: Each type argument
+must also bring along its own invariant.
+
+Using both of these insights, we can construct a more faithful invariant that fixes the issues:
+```lean
+inductive FinInv : Nat → Fin' → Prop where
+  | mk (n : Nat) (val : Nat) (h : val < n) : FinInv n (Fin'.mk val)
+
+inductive VecInv (α : Type) (p : α → Prop) : Nat → Vec' α → Prop where
+  | nil : VecInv α p 0 Vec'.nil
+  | cons (n : Nat) (x : α) (xs : Vec' α) (h1 : p x)
+    (h2 : VecInv α p xs n) : VecInv α p  (n + 1) (Vec'.cons n x xs)
+```
+With these invariants, given `xs : Vec (Fin 0) n` we would generate `VecInv (Fin 0) (FinInv 0) xs n`.
+This new invariant correctly restricts the occurrences of `Fin 0` and thus preserves `xs = nil`.
+
 - Present the invariant generation algorithm and the new inductive generation algorithm:
   - transformation on types
   - crucial: this algorithm is mutually recursive with the expression eliminator, already define its
     prototype and say we will define it later
-- example with now correctly translated `Vec (Fin 0) n`
 - move on to expression transformer:
   - key question: where to insert the invariants
   - answer: whenever a piece of data is bound by a universal quantifier
