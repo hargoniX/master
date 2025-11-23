@@ -776,20 +776,20 @@ The following reduction can be made to work with the different parameter kinds o
 though having them separate makes the presentation much simpler. For this reason we will also only
 consider definitions whose the type arguments occur grouped in the beginning of the signature.
 
-For performing the transformation I will make use of several auxiliary functions that will be
+For performing the transformation, I will make use of several auxiliary functions that will be
 defined through the course of this section:
 - $dentype(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and eliminates
   dependent types in $alpha$. In particular, whenever it encounters a binder for a proposition, it
   replaces the bound type with $"Erased"$.
 - $mkinv(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and
   generates a new expression of type $dentype(alpha, Gamma) -> "Prop"$. These expressions
-  are like the invariants from above but generalized to arbitrary monotypes.  
+  are like the invariants from above but generalized to arbitrary monotypes.
 - $denprop(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$, s.t. $Gamma
   tack alpha : "Prop"$. It eliminates non-propositional dependent types in $alpha$ by injecting the
   data-carrying variants of inductive types and their invariants as needed.
   This function is the entry point for reducing a proposition.
 - $denterm(t, Gamma)$ takes a context $Gamma$ and a monoterm $t$ and eliminates
-  dependent types in $t$. 
+  dependent types in $t$.
 - #align(left, block($
   denexpr(e, Gamma) = cases(
      denprop(e, Gamma) "if" Gamma tack e : "Prop",
@@ -851,11 +851,11 @@ $
 "inv"_c " " overline(a) " " p_overline(a) " " overline(x) " " overline(t')_n " " ("ctor"'_n " " overline(a) " " overline(z)_n) \
 $
 Next, I define $mkinv(alpha, Gamma)$ for generating an invariant for
-any monotype. Doing this is necessary because we might for example have to restrict the co-domain
+any monotype. Doing this is necessary because we might, for example, have to restrict the co-domain
 of a dependent function bound in a constructor.
 $
   mkinv(alpha, Gamma) &= lambda (\_ : "Erased") . denprop(alpha, Gamma)
-  "                                                           " "if" Gamma tack alpha : "Prop"
+  "                                                         " "if" Gamma tack alpha : "Prop"
   \
   mkinv(c " " overline(alpha) " " overline(e) " " overline(t), Gamma)
     &=
@@ -870,23 +870,23 @@ $
   mkinv(x, Gamma) &= p_x \
   mkinv("Prop", Gamma) &= lambda (\_ : "Prop") . top \
 $
-If the invariant generator encounters a proposition, the proposition itself becomes the invariant.
-For inductive types, it utilizes the associated inductive invariant. For a function type, it requires the
-invariant of the co-domain type to hold if the invariants of all domain types hold. Lastly, for type
-variables it uses their associated predicate variable and $"Prop"$ requires no invariant at all.
+When the invariant generator encounters a proposition, the proposition itself becomes the invariant.
+Inductive types are handled via their associated inductive invariants. In the case of function types,
+the co-domain’s invariant must hold whenever the domain invariants do. Finally, type variables use
+their corresponding predicate variables, and $"Prop"$ imposes no invariant.
 
 Equipped with all of this, we can now define the functions for removing dependent types from
 monoterms and monotypes. The key question here is where to place the invariants for restricting
-dependent types. Because we are only working with well typed expressions, most occurrences of
-dependent types already fulfill the required invariants naturally. For example, a term of type
-$"Vec" "Nat" 42$ that is only built from constructors, is also a list of length $42$ after naively
-removing all dependent types. The crucial exception to this are universal quantifiers, here
-Nunchaku's solvers can later synthesize their own terms and we have to ensure they remain
-restricted.
+dependent types. Because we are only working with well-typed expressions, most occurrences of
+dependent types already fulfill the required invariants by construction. For example, a term of type
+$"Vec" 42$ that is only built from constructors is also a list of length $42$ after naively
+removing all dependent types. The crucial exception to this is universal quantification. Whenever we
+universally qualify over a dependent type, we need to restrict the resulting quantification over the
+data-carrying type.
 
-The issue with universal quantifiers can for example be observed in the expression
+The issue with universal quantifiers can for example be observed in the proposition
 $ forall (n : "Nat")(x : "Vec" n). "length" x = n $
-If we just naively substitute all types with their data-carrying types here, we are left with
+If we just naively substitute all types with their data-carrying types, we are left with
 a statement that claims any list can have any length, which is clearly wrong. Instead, we need to
 restrict $x$ to be a list of the proper length:
 $ forall (n : "data"_"Nat")(x : "data"_"Vec"). "inv"_"Vec" " " n " " x -> "length" x = n $
@@ -950,7 +950,7 @@ $
 & dots.v \
 & "ctor"_n : (overline(z)_n : overline(gamma)_n) -> c " " overline(a) " " overline(x) " " overline(t)_n \
 $
-the replacement proposition $c'$ is
+its replacement proposition $c'$ is
 $
   (overline(x) : overline(alpha'))","(overline(y) : overline(beta')) &= dentype((overline(x) : overline(alpha))","(overline(y) : overline(beta)) , (overline(a) : "Type" u)) \
   (overline(z) : overline(gamma')_i) &= dentype((overline(z)_i : overline(gamma)_i), (overline(a) : "Type" u), (p_overline(a) : overline(a) -> "Prop"), (overline(x) : overline(alpha))) \
@@ -960,22 +960,22 @@ $
 $
 $
 & "inductive" c' " " (overline(a) : "Type" u) " " (p_overline(a) : overline(a) -> "Prop") " " (overline(x) : overline(alpha')) : (overline(y) : overline(beta')) -> "Prop" "where" \
-& "ctor"_1 :
+& "ctor"'_1 :
 ("inv"_overline(x) " " overline(x)) ->
 (overline(z)_1 : overline(gamma')_1) ->
 ("inv"_(overline(z)_1) " " overline(z)_1) ->
 c' " " overline(a) " " p_overline(a) " " overline(x) " " overline(t')_1 \
 & dots.v \
-& "ctor"_n :
+& "ctor"'_n :
 ("inv"_overline(x) " " overline(x)) ->
 (overline(z)_n : overline(gamma')_n) ->
 ("inv"_(overline(z)_n) " " overline(z)_n) ->
 c' " " overline(a) " " p_overline(a) " " overline(x) " " overline(t')_n \
 $
 
-The last remaining construct are definitions. Similarly to inductive types, we will only consider
-definitions that have all their type arguments grouped in the beginning for simplicity. This leaves
-us with definitions of the shape
+The last remaining construct are definitions. Just like with inductive types, we only consider
+definitions with type arguments grouped in the beginning. This leaves us with definitions of the
+shape:
 $
 & "def" c : (overline(a) : "Type" u) -> beta "where" \
 & forall (overline(a) : "Type" u) (overline(x)_1 : overline(gamma)_1). c " " overline(a) " " overline(t)_1 = u_1 \
@@ -998,13 +998,13 @@ $
 & forall (overline(a) : "Type" u) (overline(p) : overline(a) -> "Type" u) (overline(x)_n : overline(gamma')_n). c' " " overline(a) " " overline(t')_n = u'_n \
 $
 
-Using all of this machinery, we can now take a monotype $alpha$ with $epsilon tack alpha : "Prop"$ and
+Using all of this machinery, we can now take a monotype $alpha$ such that $epsilon tack alpha : "Prop"$ and
 erase all non-propositional dependent types from it with $denprop(alpha, epsilon)$. This leaves us in
 a fragment where dependent types only occur as universal propositional quantification and
 inductive propositions, both of which are fine for Nunchaku.
 
 This concludes the presentation of the naive encoding for dependent types. However, in many cases
-the invariants placed by this encoding are going to turn out useless. For example, when translating
+the invariants placed by this encoding are going to turn out unnecessary. For example, when translating
 commutativity of addition on natural numbers
 $ forall (n : "Nat") (m : "Nat"), n + m = m + n $
 the encoding produces
@@ -1015,8 +1015,8 @@ While this is sound, the $"inv"_"Nat"$ assumptions are unnecessary. After all, $
 dependent type and also doesn't transitively contain any dependent types which leaves nothing for
 $"inv"_"Nat"$ to enforce.
 
-Because of these trivial invariants, many expressions that do not involve dependent types can be
-reduced to expressions without any invariants at all. Doing this can be useful for finding
+Due to these trivial invariants, many expressions that do not involve dependent types can be
+reduced to expressions without any invariants at all. Doing so can be useful for finding
 counterexamples with Nunchaku, as its solvers might have to invest effort or even fail to see that
 some invariants are trivial.
 
@@ -1047,35 +1047,42 @@ $
 & "ctor"_n : (overline(z)_n : overline(gamma)_n) -> c \
 $
 and we have $forall i, Gamma tack (overline(z)_i : overline(gamma)_i) "trivial"$. This criterion
-ensures, that we only omit invariants when encountering an inductive type that is guaranteed to have
+ensures that we only omit invariants when encountering an inductive type that is guaranteed to have
 a trivial invariant, or a function to such a type.
 
 While this final reduction is sound for many Lean problems in practice, as we are going to see
 in @sect_case_studies and @sect_eval, it is not generally sound. The reason for this is that the
 reduction sometimes fails to enforce invariants when they are required. For example, consider
-the following function on length indexed vectors:
+the $"head"$ function on $"Vec"$:
 $
 & "def" "head" : (n : "Nat") -> "Vec" ("succ" n) -> "Nat" "where" \
 & forall (n : "Nat") (x : "Nat") (t : "Vec" n). "head" n " " ("cons" n " " x " " t) = x \
 $
-After the reduction this function is equivalent to
+After the reduction this function becomes
 $
-& "def" "head" : "Nat" -> "Vec'" -> "Nat" "where" \
-& forall (n : "Nat") (x : "Nat") (t : "Vec'"). "head" n " " ("cons" n " " x " " t) = x \
+& "def" "head"' : "data"_"Nat" -> "data"_"Vec" -> "data"_"Nat" "where" \
+& forall (n : "data"_"Nat") (x : "data"_"Nat") (t : "data"_"Vec"). "head"' " " n " " ("cons"' " " n " " x " " t) = x \
 $
-Observe that this function is now underspecified, it is missing the $"nil"$ case, which was previously
-unnecessary. This is not generally an issue for Nunchaku, if parts of a function are underspecified,
-it leaves them to be arbitrarily synthesized by the backend solvers. When the inputs to $"head"$ are
-properly restrained, this is fine because the underspecified parts of the function will never be
-exercised. However, consider a case where we had defined a copy of $"head"$, $"head"_2$.
-While $"head" = "head"_2$ is provable in Lean using function extensionality, after the reduction
-both functions have an underspecified case that does not necessarily have to match. 
+Observe that this function is now underspecified; it is missing the $"nil"$ case, which was previously
+unnecessary. This is not generally an issue for Nunchaku. When a function is underspecified,
+Nunchaku lets the backend solvers fill in the missing parts arbitrarily. If the inputs to $"head"$ are
+properly restrained, this is fine because the underspecified cases are never exercised.
+However, consider a case where we had defined a copy of $"head"$, called $"head"_2$.
+Although $"head" = "head"_2$ is provable in Lean using function extensionality, after the reduction
+both functions have an underspecified case. Because they are separate definitions, the backend
+solvers of Nunchaku can fill in these underspecified cases differently and come to the conclusion
+that $"head"' != "head"'_2$.
 
 Even though simple cases like $"head" = "head"_2$ can be resolved by explicitly applying function
 extensionality and enforcing invariants on the function inputs, this is not generally possible.
-Equality between underspecified functions might be hidden behind polymorphism, making it impossible
-to generally detect when and how to apply function extensionality. A potential fix for this could be
-to eliminate polymorphism before eliminating inductive types. 
+Equality between underspecified functions might be hidden behind polymorphism. For example, consider a
+predicate $"P" " " (a : "Type u") : a -> a -> "Prop"$ with a single introduction rule
+$"intro" : (l : a) -> (r : a) -> l = r -> "P" " " a " " l " " r$. Instead of exposing the equality
+between functions directly, it could be hidden behind this predicate:
+$ "P" " " ((n : "Nat") -> "Vec" ("succ" n) -> "Nat") "head" "head"_2 $
+In these situations, it is not possible to apply function extensionality because the equality is
+between values of type $a$ and not directly between functions. A potential fix for this could be
+to eliminate polymorphism before eliminating dependent types.
 
 == Eliminating Polymorphism (4P) <sect_trans_poly>
 - This leaves us in a non dependent fragment of Lean with "easy" polymorphism
