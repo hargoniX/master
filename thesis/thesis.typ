@@ -632,30 +632,37 @@ of Lean to the input logic of Nunchaku.
 == Eliminating Dependent Types (8P) <sect_trans_dtt>
 The first step of the reduction is the elimination of dependent types. Doing this before handling
 polymorphism is not an obvious choice. The reason for choosing to eliminate dependent types first
-despite this is simplicity. With this ordering only one step has to deal with dependent types while
-the other way around both steps have to.
+is simplicity. With this ordering, only one step has to deal with the complexity of dependent types,
+while the other way around both steps have to.
 
 Dependent types generally occur in two flavors in the input fragment. First, a function or
-inductive might take an argument that is a proof. This is an issue because Nunchaku has no notion of proof terms
+inductive might take an argument that is a proof. This is an issue because Nunchaku has no notion of proof terms,
 so they need to be removed. Second, an inductive type may have term arguments.
 If the inductive type lives in $"Prop"$, this is not an issue because Nunchaku's inductive
 predicates work with term arguments. On the other hand, if the inductive lives in $"Type" u$,
 the term arguments need to be removed as well. 
 
-For handling proof terms we can make use of Lean's proof irrelevance. Because the concrete value of
+This distinction between $"Type" u$ and $"Prop"$ generalizes to more than just inductive types.
+For example, the proposition $forall (n : "Nat") (p : "Nat" -> "Prop"). p " " n$ is perfectly
+understandable to Nunchaku, despite involving dependent types. However, the type
+$(n : "Nat") -> "Fin" n$ needs to be changed, because Nunchaku cannot handle the dependency of
+$"Fin"$ on $n$. This shows that the reduction must generally handle types living in $"Type" u$ and
+types living in $"Prop"$ differently.
+
+For handling proof terms, we can make use of Lean's proof irrelevance. Because the concrete value of
 a proof term cannot change the semantics of a program, they can be erased. This technique of _proof
-erasure_ is a well established approach and is used by both the Lean code generator and the Rocq code
-extractor @coqerasure. The core idea is to introduce a new type $"Erased"$
-with a single value $qed : "Erased"$. Then, when a proof term needs to be removed, we can replace
-it with $qed$ and if a binder binds a proof we can replace the bound type with $"Erased"$.
+erasure_ is a well-established approach and is used by both the Lean code generator and the Rocq code
+extractor @coqerasure. The core idea is to introduce a new type, $"Erased"$,
+with a single value $qed : "Erased"$. When a proof term needs to be removed, we can replace
+it with $qed$, and if a binder binds a proof, we can replace the bound type with $"Erased"$.
 
 The elimination of dependent inductive types expands on prior work by Cruanes and Blanchette
 @nunchakudtt. Their approach takes a dependent inductive type and generates two new types, a non-dependent
 version for carrying the data and an inductive predicate to restrict the shape of the data
-as required by the dependent type. Then, the dependent type gets replaced with the non-dependent one
-and the predicate is enforced upon it as needed.
+as required by the dependent type. Then, the dependent type gets replaced with the non-dependent
+one, and the predicate is enforced upon it as needed.
 
-To generate this inductive predicate they consider an inductive type of the form:
+To generate this inductive predicate, they consider an inductive type of the form
 $
 & "inductive" c " " (overline(a) : "Type" u) : (overline(x) : overline(alpha)) ->  "Type" u "where" \
 & "ctor"'_1 : (overline(y)_1 : overline(beta)_1) -> (overline(z)_1 : c " " overline(a) " " overline(s)_1) -> c " " overline(a) " " overline(u)_1 \
@@ -663,9 +670,9 @@ $
 & "ctor"'_n : (overline(y)_n : overline(beta)_n) -> (overline(z)_n : c " " overline(a) " " overline(s)_n) -> c " " overline(a) " " overline(u)_n \
 $
 Where $overline(a)$ are the type parameters of $c$, $overline(x)$ the term arguments of $c$,
-$overline(z)$ the recursive occurrences of $c$ in its constructors and $overline(y)$ the remaining
-constructor arguments. From this, they derive an inductive type $"data"_c " " overline(a) : "Type" u$
-which drops all term arguments, together with an invariant $"inv"_c$:
+$overline(z)$ the recursive occurrences of $c$ in its constructors, and $overline(y)$ the remaining
+constructor arguments. From this, they derive an inductive type $"data"_c " " overline(a) : "Type"
+u$, which drops all term arguments, together with an invariant $"inv"_c$:
 $
 & "inductive" "inv"_c " " (overline(a) : "Type" u) : (overline(x) : overline(alpha)) -> "data"_c " " overline(a) -> "Prop" "where" \
 & "ictor"_1 :
@@ -680,7 +687,7 @@ $
   ("inv"_c " " overline(a) " " overline(s)_n " " overline(z)_n) ->
   "inv"_c " " overline(a) " " overline(u)_n  " " ("ctor"'_n " " overline(a) " " overline(y) " " overline(z)_n) \
 $
-The main idea of $"inv"_c$ is to have one introduction rule per constructor of $c$ to restrict the
+The idea behind $"inv"_c$ is to have one introduction rule per constructor of $c$ to restrict the
 term arguments of $c$, according to that constructor. Furthermore, all recursive occurrences of $c$
 get restricted by enforcing the invariant recursively for them as well.
 
@@ -696,7 +703,7 @@ inductive Vec : Nat → Type where
   | cons (n : Nat) (x : Fin 0) (xs : Vec n) : Vec (n + 1)
 ```
 Note that this particular version of `Vec` only carries values of `Fin 0`. Because there are no numbers less
-than zero, we can prove that for every `xs : Vec n` we have `xs = nil`. The invariant generated for
+than zero, we can prove that for every `xs : Vec n`, we have `xs = nil`. The invariant generated for
 `Vec` would be
 ```lean
 inductive Fin' : Type where
@@ -722,7 +729,6 @@ inductive Vec (α : Type) : Nat → Type where
   | nil : Vec α 0
   | cons (n : Nat) (x : α) (xs : Vec α n) : Vec α (n + 1)
 ```
-#pagebreak(weak:true)
 ```lean
 inductive Vec' (α : Type) : Type where
   | nil : Vec' α
@@ -733,12 +739,12 @@ inductive VecInv (α : Type) : Nat → Vec' α → Prop where
   | cons (n : Nat) (x : α) (xs : Vec' α) (h : VecInv α n xs)
     : VecInv α (n + 1) (Vec'.cons n x xs)
 ```
-The previous counterexample can be generalized to this invariant as `Vec (Fin 0) n`. Once
+The previous counterexample can be generalized to this situation as `Vec (Fin 0) n`. Once
 again, the invariant fails to restrict the `x`. However, it is unclear what the invariant for
 `α` should even be to begin with. This leads us to the second insight: Each type argument
 must bring along its own invariant.
 
-Using both of these insights, we can construct more faithful invariants that fix these issues:
+Using both of these insights, we can construct more faithful invariants:
 ```lean
 inductive FinInv : Nat → Fin' → Prop where
   | mk (n : Nat) (val : Nat) (h : val < n) : FinInv n (Fin'.mk val)
@@ -758,32 +764,32 @@ This new invariant correctly restricts the occurrences of `Fin 0` and thus prese
 #let denexpr(term, ..ctx) = $[| #ctx.pos().join(", ") tack term |]_"ex"$
 #let mkinv(ty, ..ctx) = $[| #ctx.pos().join(", ") tack ty |]_"inv"$
 
-To formalize this new approach we will consider inductive types of the shape
+To formalize this new approach, we will consider inductive types of the shape
 $
 & "inductive" c " " (overline(a) : "Type" u) " " (overline(x) : overline(alpha)) : (overline(y) : overline(beta)) -> "Type" u "where" \
 & "ctor"_1 : (overline(z)_1 : overline(gamma)_1) -> c " " overline(a) " " overline(x) " " overline(t)_1 \
 & dots.v \
 & "ctor"_n : (overline(z)_n : overline(gamma)_n) -> c " " overline(a) " " overline(x) " " overline(t)_n \
 $
-where $overline(a)$ are the type parameters, $overline(x)$ term parameters and $overline(y)$ the indices. The following reduction can be made
-to work with the different parameter kinds occurring out of order, though having them separate makes the presentation
-much simpler. For this reason we will also only consider definitions where the type arguments occur
-grouped in the beginning of the signature.
+where $overline(a)$ are the type parameters, $overline(x)$ the term parameters, and $overline(y)$ the indices.
+The following reduction can be made to work with the different parameter kinds occurring out of order,
+though having them separate makes the presentation much simpler. For this reason we will also only
+consider definitions whose the type arguments occur grouped in the beginning of the signature.
 
 For performing the transformation I will make use of several auxiliary functions that will be
 defined through the course of this section:
 - $dentype(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and eliminates
-  dependent types in $alpha$. In particular whenever it encounters a binder for a proposition, it
-  replaces it with a binder for $"Erased"$.
+  dependent types in $alpha$. In particular, whenever it encounters a binder for a proposition, it
+  replaces the bound type with $"Erased"$.
 - $mkinv(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and
   generates a new expression of type $dentype(alpha, Gamma) -> "Prop"$. These expressions
-  are like the invariants from above but generalized to arbitrary monotypes. This function is the
-  entry point for reducing a proposition. 
-- $denprop(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ s.t. $Gamma
+  are like the invariants from above but generalized to arbitrary monotypes.  
+- $denprop(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$, s.t. $Gamma
   tack alpha : "Prop"$. It eliminates non-propositional dependent types in $alpha$ by injecting the
   data-carrying variants of inductive types and their invariants as needed.
+  This function is the entry point for reducing a proposition.
 - $denterm(t, Gamma)$ takes a context $Gamma$ and a monoterm $t$ and eliminates
-  dependent types in $t$.
+  dependent types in $t$. 
 - #align(left, block($
   denexpr(e, Gamma) = cases(
      denprop(e, Gamma) "if" Gamma tack e : "Prop",
@@ -816,8 +822,8 @@ $
 & dots.v \
 & "ctor"'_n : dentype((overline(z)_n : overline(gamma)_n), (overline(a) : "Type" u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
 $
-The reason that removing all non-type parameters is possible, is that they cannot occur anymore in
-the types of the erased constructor parameters $overline(z)_i$, thus leaving us with a well formed inductive
+The reason that removing all non-type parameters is possible is that they cannot occur anymore in
+the types of the erased constructor parameters $overline(z)_i$, thus leaving us with a well-formed inductive
 data type.
 
 For restricting the data-carrying type, I use the construction by Cruanes and Blanchette, modified as
