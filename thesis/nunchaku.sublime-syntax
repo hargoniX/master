@@ -8,3 +8,11 @@ contexts:
   main:
     - match: \b(if|then|else|forall|exists|pi|rec|pred|data|axiom|goal|val|prop|type)\b
       scope: keyword.control.nun
+    - match: '#'
+      scope: punctuation.definition.comment.nun
+      push: line_comment
+
+  line_comment:
+    - meta_scope: comment.line.number-sign.nun
+    - match: $
+      pop: true
