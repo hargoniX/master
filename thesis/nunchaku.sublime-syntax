@@ -6,5 +6,5 @@ scope: source.nun
 
 contexts:
   main:
-    - match: \b(if|then|else|forall|exists|pi|rec|pred|data|axiom|goal|val)\b
+    - match: \b(if|then|else|forall|exists|pi|rec|pred|data|axiom|goal|val|prop|type)\b
       scope: keyword.control.nun
