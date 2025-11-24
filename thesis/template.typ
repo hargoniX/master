@@ -106,7 +106,10 @@
     #v(1fr)
     Disclaimer
   ]
-  [I confirm that this master thesis is my own work and I have documented all sources and material used.]
+  [I hereby declare that I have written this work independently and only with the aids specified.
+  All passages that I have taken from literature or other sources have been clearly marked as quotations with reference to the source.
+
+  This printed copy is a printout of the submitted electronic copy.]
   v(10mm)
   grid(
     columns: (250pt, 250pt),
