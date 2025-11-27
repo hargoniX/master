@@ -3,6 +3,10 @@
 #import "@preview/lovelace:0.3.0": *
 
 #set raw(syntaxes: "nunchaku.sublime-syntax")
+#show math.equation: it => {
+  show ".": [$.thin$]
+  it
+}
 
 #let target_date = datetime(year: 2026, month: 1, day: 23)
 #show : official.with(
