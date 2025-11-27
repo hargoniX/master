@@ -1134,130 +1134,48 @@ between values of type $a$ and not directly between functions. A potential fix f
 to eliminate polymorphism before eliminating dependent types.
 
 == Eliminating Polymorphism (4P) <sect_trans_poly>
-- This leaves us in a non dependent fragment of Lean with "easy" polymorphism
-  - $->$ in principle we could translate to Nunchaku right away and let it handle the rest
-  - but: Lean's polymorphism is in principle much more expressive and I want to keep the opportunity
-    to make this extension in the future
-  - Recent work has been made in @monotypeflow towards extending monomorphization to higher ranked
-    and existential polymorphism
-  - $->$ implement this work for the rank 1 fragment in Lean to allow potential extensions in the
-    future
-  - nice bonus: Can determine solvability ahead of time
-- exposition about type flow analysis
-  - collect constraints on types like in data flow analysis
-  - solve them using a fixpoint iterator
-  - instantiate the solution to get a generics-free program
-- show my type flow analysis
-- talk about solvability
-  - introduce new solvability check algorithm
-- talk about how to apply the result
+With dependent types removed, we are left in a logic with rank-1 polymorphism. In
+principle, this logic can be translated to Nunchaku immediately, since Nunchaku supports rank-1 polymorphism.
+However, as explained previously, Lean supports much more expressive variants of
+polymorphism. While they are currently ignored, it would be better to use an approach that can later
+be extended to support a larger fragment of Lean as well. Recent work by Lutze at al. @monotypeflow
+provides exactly such an extensible framework.
 
-/*
+Lutze et al. use a type-based flow analysis to monomorphize both higher-ranked and existential
+polymorphism. The idea behind this analysis is to apply the concepts of data-flow
+analysis to the type level. The analysis proceeds in three phases to monomorphize a program.
+First, it traverses the program and generates constraints based on what types
+polymorphic constants are applied to. Then, it determines whether these constraints admit a finite
+solution and if they do, determines a solution through fixpoint iteration. This solution is a map
+from type variables to the set of types with which they might be instantiated. Lastly, the analysis
+traverses the program again and instantiates each polymorphic constant according to the solution.
 
-For simplicity we consider all type arguments to be in the beginning. Furthermore type parameters
-of the constructor of a generic type have the parameters for the type itself first and potential
-existential ones later (bla bla about type indices illegal and what not). We define a function
-$"tarity"(c)$ that returns how many type arguments a
-function has. This is crucial as generic functions (and constructors) can be partially applied which we currently
-don't support.
+In the remainder of this section, I present an adaptation of their type-based flow analysis to the
+flavor of rank-1 polymorphism required for this work. To simplify the presentation, I only describe
+the analysis for problems where each constant has at most one type parameter (just like Lutze. et al).
+In practice, the implementation supports any amount of type variables.
 
-We now adapt this analysis to the remaining fragment of Lean. Relations:
-- $Sigma tack e =>_E R$ collecting constraints on expressions
-- $Sigma tack c " " e_1 ... e_n =>_A C$ collecting constraints for applied constants
-- $Sigma tack c =>_C C$ collecting constraints that are inherent to constants
+The analysis tracks constraints of the form $tau subset.sq.eq x$,
+pronounced "monotype $tau$ flows into type variable $x$". These constraints only need to
+handle monotypes that live in $"Type" u$ and dependent types have been eliminated. For
+this reason both the types in the constraints and the type parameters to polymorphic constants can
+only take on four shapes:
+$ tau ::= x | tau_1 -> tau_2 | c " " tau | c $
 
-TODO handle lambda
-
-#align(center, [
-  #box(proof-tree(inf-rule(
-    $Sigma tack x =>_E emptyset$,
-    name: "Var"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack c =>_E R$,
-    $Sigma tack c =>_C R$,
-    name: "Const"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack U_n =>_E emptyset$,
-    name: "Univ"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack forall (x : e_1), e_2 =>_E R_1 union R_2$,
-    $Sigma tack e_1 =>_E R_1$,
-    $Sigma tack e_2 =>_E R_2$,
-    name: "Pi"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack c " " e_1 ... e_n =>_E R_c union union.big_i R_i$,
-    $Sigma tack c " " e_1 ... e_(min(n, "tarity"(c))) =>_A R_c$,
-    $forall i, Sigma tack e_i => R_i$,
-    name: "ConstApp"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack e_1 " " e_2 ... e_n =>_E union.big_i R_i$,
-    $forall i, Sigma tack e_i =>_E R_i$,
-    name: "App"
-  )))
-])
-
-#linebreak()
-For the constraint collection of applied constants we have rules of the shape:
-
-#align(center, [
-#box(proof-tree(inf-rule(
-  $Sigma tack c " " e_1 ... e_n =>_E { [e_i | i in [1, "tarity"(c)]] subset.eq.sq [alpha_i | i in [1, "tarity"(c)]] } union R_c$,
-  $"inductive" c : alpha_1 -> ... -> alpha_("tarity"(c)) -> e "where" | ...  in Sigma$,
-  $"tarity"(c) <= n$,
-  $Sigma tack c =>_C R_c$,
-  name: "IndApp"
-)))])
-
-#linebreak()
-and similarly for all other constant kinds. This leaves only the constraints that are inherent to
-constants:
-
-
-#align(center, [
-  #box(proof-tree(inf-rule(
-    $Sigma tack c =>_C R_"ind" union union.big_i { [alpha_1, ..., alpha_("tarity"(c))] subset.sq.eq [beta_(i_1), ..., beta_(i_("tarity"(c)))] } union R_i $,
-    $"inductive" c : alpha_1 -> ... -> alpha_("tarity"(c)) -> e_"ind" "where" | "ctor"_i : beta_(i_1) -> ... -> beta_(i_n) -> e_i in Sigma$,
-    $forall i, Sigma tack e_i =>_E R_i$,
-    $Sigma tack e_"ind" =>_E R_"ind"$,
-    name: "Ind"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack c =>_C R$,
-    $"inductive" c_"ind" : alpha_1 -> ... -> alpha_("tarity"(c_"ind")) -> e_"ind"  "where" | c " " : beta_(i_1) -> ... ->beta_(i_n) -> e_i in Sigma$,
-    $Sigma tack c_"ind" =>_C R$,
-    name: "Ctor"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack c =>_C union.big_i R_i$,
-    $"def" c : alpha_1 -> ... -> alpha_("tarity"(c)) -> e_1 "with" e_2, ... e_n  in Sigma$,
-    $forall i, Sigma tack e_i =>_E R_i$,
-    name: "Defn"
-  )))
-  #box(proof-tree(inf-rule(
-    $Sigma tack c =>_C R$,
-    $"opaque" c : e in Sigma$,
-    $Sigma tack e =>_E R$,
-    name: "Opaque"
-  )))
-])
-
-We run the $Sigma tack e =>_E R$ analysis for all variables in the local context of the goal as well
-as the goal itself and thus transitively end up collecting constraints for all involved functions
-and symbols in the entire problem. As with previous analyses it is crucial to cache results of
-shared subterms (or rather just not visiting repeated subterms) to avoid blowup that could've been
-caused by the initial reduction operations.
-
-TODO: Talk about solvability
-
-After constraint collection we solve it with a standard fixpoint solver for lattice constraints.
-
-TODO talk about applying the results
-*/
+my analysis:
+- collecting constraints:
+  - functions for collecting constraints in types and terms
+    - what's their names?
+  - maybe just do it like i actually do it and collect using one big function?
+  - note the assumption about unique type variable names
+- extend collection to definitions/inductives
+- solvability:
+  - reinterpreting a constraint set as a graph
+  - present algorithm for checking for solvability
+- solving:
+  - reinterpreting as lattice constraints
+  - fixpoint algorithm
+- instantiation
 
 #pagebreak(weak: true)
 
