@@ -550,7 +550,7 @@ $
 Observe that the type of an inductive is split into two parts: $(overline(x) : overline(alpha))$ and
 $beta$. The $overline(x)$ part is called the _parameters_ of $c$ and remains fixed across all
 constructors. If $beta$ contains additional arguments, they are called the _indices_ of $c$ and may vary across
-constructors. Together, we refer to them as the _arguments_ of $c$.
+constructors. Together, I refer to them as the _arguments_ of $c$.
 
 To impose the restriction of rank-1 polymorphism on this calculus, I use a notion of
 monotypes $tack alpha "mono"$ and polytypes $tack alpha "poly"$, similar to Jones et al. @higherrankedspj.
@@ -1088,16 +1088,9 @@ $
     $c "is a trivial inductive type"$,
   )))
 ])
-Where $c$ is a trivial inductive type if it is of the shape
-$
-& "inductive" c : "Type" u "where" \
-& "ctor"_1 : (overline(z)_1 : overline(gamma)_1) -> c \
-& dots.v \
-& "ctor"_n : (overline(z)_n : overline(gamma)_n) -> c \
-$
-and $forall i, Gamma tack (overline(z)_i : overline(gamma)_i) "trivial"$. This criterion
-ensures that we only omit invariants when encountering an inductive type that is guaranteed to have
-a trivial invariant, or a function to such a type.
+Where $c$ is a trivial inductive type if it takes no parameters or indices and all of its
+constructor arguments have trivial types. This criterion ensures that we only omit invariants when
+encountering an inductive type that is guaranteed to have a trivial invariant, or a function to such a type.
 
 While this final reduction is sound for many Lean problems in practice, as we are going to see
 in @sect_case_studies and @sect_eval, it is not generally sound. The reason for this is that the
@@ -1139,18 +1132,17 @@ principle, this logic can be translated to Nunchaku immediately, since Nunchaku 
 However, as explained previously, Lean supports much more expressive variants of
 polymorphism. While they are currently ignored, it would be better to use an approach that can later
 be extended to support a larger fragment of Lean as well. Recent work by Lutze at al. @monotypeflow
-provides exactly such an extensible framework.
+provides such an extensible framework.
 
-Lutze et al. use a type-based flow analysis to monomorphize both higher-ranked and existential
-polymorphism. The idea behind this analysis is to apply the concepts of data-flow
-analysis to the type level. The analysis proceeds in three phases to monomorphize a program.
+Lutze et al. use a type flow analysis to monomorphize both higher-ranked and existential
+polymorphism. The analysis proceeds in three phases to monomorphize a program.
 First, it traverses the program and generates constraints based on what types
-polymorphic constants are applied to. Then, it determines whether these constraints admit a finite
+polymorphic constants are directly applied to. Then, it determines whether these constraints admit a finite
 solution and if they do, determines a solution through fixpoint iteration. This solution is a map
 from type variables to the set of types with which they might be instantiated. Lastly, the analysis
 traverses the program again and instantiates each polymorphic constant according to the solution.
 
-In the remainder of this section, I present an adaptation of their type-based flow analysis to the
+In the remainder of this section, I present an adaptation of their type flow analysis to the
 flavor of rank-1 polymorphism required for this work. To simplify the presentation, I only describe
 the analysis for problems where each constant has at most one type parameter (just like Lutze. et al).
 In practice, the implementation supports any amount of type variables.
@@ -1158,24 +1150,298 @@ In practice, the implementation supports any amount of type variables.
 The analysis tracks constraints of the form $tau subset.sq.eq x$,
 pronounced "monotype $tau$ flows into type variable $x$". These constraints only need to
 handle monotypes that live in $"Type" u$ and dependent types have been eliminated. For
-this reason both the types in the constraints and the type parameters to polymorphic constants can
+this reason, both the types in the constraints and the type parameters to polymorphic constants can
 only take on four shapes:
 $ tau ::= x | tau_1 -> tau_2 | c " " tau | c $
 
-my analysis:
-- collecting constraints:
-  - functions for collecting constraints in types and terms
-    - what's their names?
-  - maybe just do it like i actually do it and collect using one big function?
-  - note the assumption about unique type variable names
-- extend collection to definitions/inductives
-- solvability:
-  - reinterpreting a constraint set as a graph
-  - present algorithm for checking for solvability
-- solving:
-  - reinterpreting as lattice constraints
-  - fixpoint algorithm
-- instantiation
+For collecting the constraints, I define a function $"C"$ that operates on both types and
+terms. Just like the dependent type elimination, this function assumes that the type arguments
+are grouped in the beginning of a constant application. Furthermore, to simplify the presentation,
+it also assumes that the names of all type variables are globally unique. In practice this can be
+achieved by disambiguating them through the name of the polymorphic constant they are attached to.
+
+#let coll(e) = $"C"(#e)$
+
+#[
+#set par(leading: 0.4em)
+
+#table(
+  columns: (90pt, 120pt, 300pt),
+  stroke: none,
+  inset: 0pt,
+  row-gutter: 13pt,
+  column-gutter: 0pt,
+  [*Terms*], [], [],
+  $coll(x)$,
+  $= {}$,
+  $$,
+
+  $coll(c)$,
+  $= {}$,
+  $$,
+
+  $coll(lambda (x : alpha) . t)$,
+  $= coll(alpha) union coll(t)$,
+  $$,
+
+  $coll(c " " alpha)$,
+  $= {alpha subset.eq.sq x} union C(alpha)$,
+  $"if" c "is a def with type argument" x$,
+
+  $coll(c " " alpha)$,
+  $= {alpha subset.eq.sq x} union C(alpha)$,
+  $"if" c "is a constructor of an inductive with type argument" x$,
+
+  $coll(t " " e)$,
+  $= coll(t) union coll(e)$,
+  $$,
+
+  [*Types*], [], [],
+  $coll(x)$,
+  $= {}$,
+  $$,
+
+  $coll(c)$,
+  $= {}$,
+  $$,
+
+  $coll("Prop")$,
+  $= {}$,
+  $$,
+
+  $coll("Type" u)$,
+  $= {}$,
+  $$,
+
+  $coll((x : alpha) -> beta)$,
+  $= coll(alpha) union coll(beta)$,
+  $$,
+
+  $coll(c " " alpha)$,
+  $= {alpha subset.eq.sq x} union C(alpha)$,
+  $"if" c "is an inductive with type argument" x$,
+
+  $coll(alpha " " e)$,
+  $= coll(alpha) union coll(e)$,
+  $$,
+)
+]
+
+Note that $"C"$ still has to consider the dependent arrow and term arguments to types because that
+is how propositions are encoded. In addition to these constraints collected from terms and types
+directly, constant declarations naturally impose some constraints too. Again, due to
+propositional dependent types, these constraints have to take the possibility of dependently typed
+inductives into account:
+#table(
+  columns: (1fr, 1fr),
+  stroke: none,
+  align: left+horizon,
+  $
+  & "inductive" c " " (overline(x) : overline(alpha)) : beta "where" \
+  & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " "overline(x) " " overline(t)_1 \
+  & dots.v \
+  & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " "overline(x) " " overline(t)_n \
+  $,
+  $ C((overline(x) : overline(alpha)) -> beta) union union.big_(i=0)^n C((overline(y)_i : overline(gamma)_i) -> c " "overline(x) " " overline(t)_i) $,
+  $
+  & "def" c : alpha "where" \
+  & forall overline(x)_1 : overline(beta)_1. c " " overline(e)_1 = u_1 \
+  & dots.v \
+  & forall overline(x)_n : overline(beta)_n. c " " overline(e)_n = u_n \
+  $,
+  $ coll(alpha) union union.big_(i=0)^n (coll(overline(beta)_i) union coll(c " " overline(e)_i) union coll(u_i)) $
+)
+
+Using this scheme, we can for example build the constraint system of a simple term
+$"add" ("length" "Nat" x_1) " " ("length" "String" x_2)$ where $"length"$ is defined as follows:
+$
+& "inductive" "List" (a : "Type") : "Type" "where" \
+& "nil" : "List" a \
+& "cons" : a -> "List" a -> "List" a \
+$
+$
+& "def" "length" : (b : "Type") -> "List" b -> "Nat" "where" \
+& forall (b : "Type"). "length" b "nil" = "zero" \
+& forall (b : "Type") (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
+$
+This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b subset.eq.sq b, a subset.eq.sq a}$
+which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
+However, a finite solution cannot always be found. 
+
+The reason that we may fail to find a finite solution are various kinds of polymorphic recursion.
+Polymorphic recursion occurs whenever recursive occurrences of a constant have other type parameters
+than the constant itself. For example, binary trees encoded using polymorphic pairs exhibit
+polymorphic recursion:
+#grid(
+  columns: (1fr, 1fr),
+  align: center,
+$
+& "inductive" "Tree" (a : "Type") : "Type" "where" \
+& "leaf" : a -> "Tree" a \
+& "node" : "Tree" ("Two" a) -> "Tree" a \
+$,
+$
+& "inductive" "Two" (b : "Type") : "Type" "where" \
+& "mk" : b -> b -> "Two" b \
+$,
+)
+These type declarations give rise to the constraints ${"Two" a subset.eq.sq a, a subset.eq.sq b, a subset.eq.sq a, b subset.eq.sq b}$. 
+Here the constraint $"Two" a subset.eq.sq a$ presents an issue because it requires instantiating $a$
+with an infinite set of types of the shape $"Two" a, "Two" ("Two" a)$ and so on.
+
+In order to detect these situations, Lutze et al. convert the constraints into a directed graph and
+detect these cyclic flows within the graph. For a given set of constraints $R$ this graph $G = (V, E)$ can
+be derived as follows:
+$
+  V &= { x | tau subset.eq.sq x in R } \
+  E &= {(y, x) | y in "fv"(tau) and tau subset.eq.sq x in R } \
+$
+#grid(
+  columns: (0.6fr, 1fr, 0.6fr, 0.6fr),
+  align: center,
+  $"fv"(x) = {x}$,
+  $"fv"(tau_1 -> tau_2) = "fv"(tau_1) union "fv"(tau_2)$,
+  $"fv"(c " " tau) = "fv"(tau)$,
+  $"fv"(c) = {}$,
+)
+Furthermore, all potentially problematic edges in the graph are marked:
+$
+"mark"((y, x)) = cases(top "if" exists tau\, tau != y and y in "fv"(tau) and tau subset.eq.sq x in R, bot "otherwise")
+$
+The constraint system $R$ is then solvable iff there exists no $e in E$ with $"mark"(e) = top$ that is
+on a cycle in $G$.
+
+In their artifact @typeflowartifact Lutze et al. use repeated BFS from the destination
+node to the origin node of each marked edge to search for such a cycle. For sufficiently large
+constraint systems this can turn out to be wasteful as it might repeatedly explore parts of
+the graph unnecessarily. Instead, I use an algorithm based on strongly connected
+components. #footnote[The idea of using SCCs for this was presented to me by Siddharth Bhat in private communications]
+The algorithm assumes the existence of a subroutine $"SCC"(G)$ that computes a map from the nodes of
+$G$ to some unique identifier of the SCC it is a member of. This can be done using Trajan's
+algorithm in time $O(abs(V) + abs(E))$. Overall the run time of the algorithm is bounded by the SCC
+finding and thus $O(abs(V) + abs(E))$.
+#pseudocode-list(booktabs: true)[
+  - *input*:
+    - constraint graph $G$
+    - precomputed marking table $"mark"$
+  - *output* true if the constraint system behind $G$ is solvable, false otherwise
+  + $"sccs" = "SCC"(G)$
+  + *for* $(y, x)$ *in* $E$ *do*
+    + *if* $"mark"((y, x)) = top and "sccs"(y) = "sccs"(x)$ *then*
+      + *return* false
+  + *return* true
+]
+
+Once solvability has been established, the constraint problem $R$ can be converted into a fixpoint
+problem as follows:
+$
+  x &= x union union.big{ "inst"(tau) | tau subset.sq.eq x in R } "   for every variable" x "in" R \
+$
+#grid(
+  columns: (0.3fr, 0.7fr),
+  row-gutter: 1em,
+  align: center,
+  $
+   "inst"(x) &= x \
+   "inst"(c) &= {c}
+  $,
+  $
+    "inst"(tau_1 -> tau_2) &= { tau'_1 -> tau'_2 | (tau'_1, tau'_2) in "inst"(tau_1) times "inst"(tau_2) } \
+    "inst"(c " " tau) &= { c " " tau' | tau' in "inst"(tau) }
+  $
+)
+Because the constraint problem is solvable, this fixpoint problem is guaranteed to admit a finite solution
+set for every type variable. The types occurring in these sets are free of type variables and are
+thus called ground types:
+$ rho ::= rho_1 -> rho_2 | c " " rho | c $
+A solution for a set of constraints can be interpreted as a map $S$ from type variables to the set
+of ground types $S(x)$ that each type variable may be instantiated with.
+
+Using this solution $S$, we can monomorphize the original problem that gave rise to the constraint
+system. Similar to constraint collection this step uses a function $"M"$ on types and values and
+performs transformations on constant declarations. 
+
+#let mon(e) = $"M"(#e)$
+
+#[
+#set par(leading: 0.4em)
+
+#table(
+  columns: (90pt, 120pt, 90pt, 120pt),
+  stroke: none,
+  inset: 0pt,
+  row-gutter: 13pt,
+  column-gutter: 0pt,
+  [*Terms*], [], [*Types*], [],
+  $mon(x)$,
+  $= x$,
+  $mon(c)$,
+  $= c$,
+
+  $mon(c)$,
+  $= c$,
+  $mon("Prop")$,
+  $= "Prop"$,
+
+  $mon(lambda (x : alpha) . t)$,
+  $= lambda (x : mon(alpha)) . mon(t)$,
+  $mon("Type" u)$,
+  $= "Type" u$,
+
+  $mon(c " " rho)$,
+  $= c_rho$,
+  $mon((x : alpha) -> beta)$,
+  $= (x : mon(alpha)) -> mon(beta))$,
+
+  $mon(t " " e)$,
+  $= mon(t) " " mon(e)$,
+  $mon(c " " rho)$,
+  $= c_rho$,
+
+  $$,
+  $$,
+  $mon(alpha " " e)$,
+  $= mon(alpha) " " mon(e)$,
+)]
+
+For a constant without type arguments, monomorphization amounts to running $"M"$ on its type and
+constructors/equations. For a polymorphic constant $c$ with type argument $x$ we need to generate a
+copy for every $rho in S(x)$. I use the notation $e[x |-> rho]$ for substituting a type variable $x$
+in an expression $e$ with a ground type $rho$.
+#table(
+  columns: (1fr, 1fr),
+  stroke: none,
+  align: left+horizon,
+  $
+  & "inductive" c " " (x : "Type" u) " " (overline(x) : overline(alpha)) : beta "where" \
+  & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " " x " " overline(x) " " overline(t)_1 \
+  & dots.v \
+  & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " " x " " overline(x) " " overline(t)_n \
+  $,
+  $
+  & "inductive" c_rho " " mon(((overline(x) : overline(alpha)) : beta)[x |-> rho]) "where" \
+  & "ctor"_1 : mon(((overline(y)_1 : overline(gamma)_(1))  -> c " " x " " overline(x) " " overline(t)_1)[x |-> rho]) \
+  & dots.v \
+  & "ctor"_n : mon(((overline(y)_n : overline(gamma)_(n)) -> c " " x " " overline(x) " " overline(t)_n)[x |-> rho])\
+  $,
+  $
+  & "def" c : (x : "Type" u) -> alpha "where" \
+  & forall (x : "Type" u) (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1 \
+  & dots.v \
+  & forall (x : "Type" u) (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n \
+  $,
+  $
+  & "def" c_rho : mon(alpha[x |-> rho]) "where" \
+  & mon((forall (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1)[x |-> rho]) \
+  & dots.v \
+  & mon((forall (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n)[x |-> rho]) \
+  $,
+)
+
+After applying this transformation, we are left with a logic with only propositional dependent types
+and no type parameters. This logic can be easily translated into Nunchaku's input format with a
+few syntactic manipulations. Furthermore, the algorithm presented in this section can be extended to
+more variants of polymorphism in the future by extending $"C"$ and $"M"$ as required.
 
 #pagebreak(weak: true)
 
@@ -1213,7 +1479,7 @@ In addition to that we infer and annotate `[wf]` predicates for Nunchaku.
 */
 
 == Extending Nunchaku (2P) <sect_impl_nunchaku>
-In addition to implementing Chako, I made several modifications to Nunchaku in order to improve the
+In addition to implementing Chako, I made several modifications to Nunchaku to improve the
 performance for problems generated by Chako. These modifications amount to improving the
 reduction pipeline, adding a new backend solver, and reporting or fixing several bugs in and around Nunchaku.
 
@@ -1281,7 +1547,7 @@ Lastly, during the development of Chako, I encountered several bugs along the en
 pipeline of Nunchaku. In summary, I reported six bugs and fixed an additional four in
 Nunchaku itself.#footnote[https://github.com/nunchaku-inria/nunchaku/issues?q=is%3Aissue%20state%3Aopen%20author%3AhargoniX]
 While some of these bugs are only crashes within Nunchaku, at least three were silent soundness issues.
-Furthermore, I encountered multiple crashes in SMBC due to violations of its core invariant
+Furthermore, I encountered multiple crashes in SMBC due to violations of its main invariant
 #footnote[https://github.com/c-cube/smbc/issues/7] and finally an unsoundness in cvc5 #footnote[https://github.com/cvc5/cvc5/issues/12208],
 which is fixed by now. Even though these bugs can often be fixed quickly, they show that Nunchaku
 has not yet matured to the point where one can expect it to just work. Getting to this point will
@@ -1490,8 +1756,6 @@ theorem WF_insert [TotalOrder α] [DecidableLT α] (t : AATree α) :
 Indeed Chako finds no counterexample for this within its default timeout.
 
 Let us now introduce a suble bug into the implementation and observe how Chako fairs at detecting it:
-#footnote[This bug is a typo that I unintentionally made during the initial implementation of this
-case study]
 ```diff
  def skew : AATree α → AATree α
    | nil => nil
