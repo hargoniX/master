@@ -8,6 +8,12 @@
   it
 }
 
+#let inductive = $bold("inductive")$
+#let definition = $bold("def")$
+#let Type = $"Type"$
+#let Prop = $"Prop"$
+#let where = $bold("where")$
+
 #let target_date = datetime(year: 2026, month: 1, day: 23)
 #show : official.with(
   title: [
@@ -171,10 +177,10 @@ in Lean. They are defined by listing their constructors, which specify the ways 
 the type can be built. A few examples of basic inductive types and definitions are given in @basic-inductives.
 
 As alluded to in @basic-inductives by the `: Type` notation, these basic inductive types also have a type:
-$"Type"$. In fact, Lean supports a whole hierarchy of types $"Type" : "Type" 1 : ... : "Type" u : "Type" (u + 1)$
+$Type$. In fact, Lean supports a whole hierarchy of types $Type : Type 1 : ... : Type u : Type (u + 1)$
 in order to avoid type-theoretic versions of Russell's paradox. At the bottom of
-this hierarchy sits the type of mathematical propositions $"Prop" : "Type"$. Both of these concepts
-are unified with the expression $"Sort" u$ by defining $"Prop" := "Sort" 0$ and $"Type" u := "Sort" (u + 1)$.
+this hierarchy sits the type of mathematical propositions $Prop : Type$. Both of these concepts
+are unified with the expression $"Sort" u$ by defining $Prop := "Sort" 0$ and $Type u := "Sort" (u + 1)$.
 
 #figure(
   ```lean
@@ -232,10 +238,10 @@ are unified with the expression $"Sort" u$ by defining $"Prop" := "Sort" 0$ and 
 
 #pagebreak(weak: true)
 
-Proofs in Lean are done using the Curry-Howard correspondence: Given a type $P : "Prop"$, if we
+Proofs in Lean are done using the Curry-Howard correspondence: Given a type $P : Prop$, if we
 can construct an inhabitant of that type $h : P$, then $h$ is a proof of $P$. The main
-motivation for introducing $"Prop"$ as a separate concept is to allow for impredicativity and proof
-irrelevance. That is, we have $(forall x : A. P) : "Prop"$ and additionally for any two inhabitants
+motivation for introducing $Prop$ as a separate concept is to allow for impredicativity and proof
+irrelevance. That is, we have $(forall x : A. P) : Prop$ and additionally for any two inhabitants
 $h_1, h_2 : P$ we get $h_1 = h_2$ by definition. Proof irrelevance is going to be of particular
 interest because it ensures that proof terms cannot be computationally relevant.
 This allows us to always erase proofs without changing the semantics of a Lean program.
@@ -301,7 +307,7 @@ its authors.
 Nunchaku's type and term language is based on @HOL, enriched with several built-in concepts. The
 relevant fragment for this work is given by the following grammar:
 $
-  alpha ::=& "type" | "prop" | x | alpha -> alpha | c " " overline(alpha) | Pi x . alpha & "   " & "types"  \
+  alpha ::=& Type | Prop | x | alpha -> alpha | c " " overline(alpha) | Pi x . alpha & "   " & "types"  \
   t ::=& c | x | t " " t | lambda x : alpha . t | "let" x : alpha := t; t | forall x : alpha . t | exists x : alpha . t \
     & | top | bot | not t | t or t | t and t | t => t | t = t | "if" t "then" t "else" t & "   " & "terms" \
 $
@@ -400,7 +406,7 @@ The last important pass for this work is the elimination of `pred` into `rec`. I
 inspired by the encoding of inductive predicates used by Nitpick @nitpickpred. The encoding is
 based on the fact that given an inductive predicate $p$ of the shape
 $
-  & "pred" p : alpha_1 -> ... -> alpha_m -> "prop" "where" \
+  & "pred" p : alpha_1 -> ... -> alpha_m -> Prop where \
   & forall overline(y)_1 . p " " overline(t)_11 and ... and p " " overline(t)_(1cal(l)_1) and Q_1 => p " " overline(u)_1 \
   & dots.v \
   & forall overline(y)_n . p " " overline(t)_(n 1) and ... and p " " overline(t)_(n cal(l)_n) and Q_n => p " " overline(u)_n\
@@ -512,11 +518,11 @@ Lean can still yield a tool that is useful for many Lean users.
 This fragment is akin to a "Lean with ML-style polymorphism". It supports only
 rank 1 polymorphism, maintains a clearly decidable separation of types, values, propositions, and
 proofs, and forbids type-producing functions. The consequence of these requirements for
-the expression syntax is the need for a clear distinction between $"Prop"$ and $"Type" u$, given by the following
+the expression syntax is the need for a clear distinction between $Prop$ and $Type u$, given by the following
 grammar:
 $
 Gamma & ::= Gamma, x : e | epsilon & "   " & "contexts" \
-e &::= x | c | e " " e | lambda x : e . e | (x : e) -> e | "Prop" | "Type" u & "   " & "expressions"
+e &::= x | c | e " " e | lambda x : e . e | (x : e) -> e | Prop | Type u & "   " & "expressions"
 $
 Because this is a mere syntactic restriction of Lean's core calculus, we can reuse Lean's type
 system with the typing judgment $Gamma tack e : e$.
@@ -535,13 +541,13 @@ by Lean upon the declaration of a new definition.
   columns: (1fr, 1fr),
   align: center,
 $
-& "def" c : alpha "where" \
+& definition c : alpha where \
 & forall overline(x)_1 : overline(beta)_1. c " " overline(e)_1 = u_1 \
 & dots.v \
 & forall overline(x)_n : overline(beta)_n. c " " overline(e)_n = u_n \
 $,
 $
-& "inductive" c " " (overline(x) : overline(alpha)) : beta "where" \
+& inductive c " " (overline(x) : overline(alpha)) : beta where \
 & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " " overline(x) " " overline(t)_1 \
 & dots.v \
 & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " " overline(x) " " overline(t)_n \
@@ -565,7 +571,7 @@ Because types can depend on terms, defining them also requires a notion of monot
     $tack x "mono"$,
   )))
   #box(proof-tree(inf-rule(
-    $tack "Prop" "mono"$,
+    $tack Prop "mono"$,
   )))
   #box(proof-tree(inf-rule(
     $tack alpha " " beta "mono"$,
@@ -597,7 +603,7 @@ Because types can depend on terms, defining them also requires a notion of monot
     $tack beta "poly"$,
   )))
   #box(proof-tree(inf-rule(
-    $tack (x : "Type" u) -> beta "poly"$,
+    $tack (x : Type u) -> beta "poly"$,
     $tack beta "poly"$,
   )))
   #box(proof-tree(inf-rule(
@@ -621,13 +627,13 @@ Because types can depend on terms, defining them also requires a notion of monot
 
 Using these restrictions on terms and types, I extend Lean’s usual constraints on constant
 declarations to obtain the target fragment. First, the type $alpha$ of a definition must satisfy
-$epsilon tack alpha : "Type" u$ and be a polytype; each equation $"eq"_i$ must likewise satisfy
-$epsilon tack "eq"_i : "Prop"$ and also be a polytype.
+$epsilon tack alpha : Type u$ and be a polytype; each equation $"eq"_i$ must likewise satisfy
+$epsilon tack "eq"_i : Prop$ and also be a polytype.
 Second, the overall type of an inductive $(overline(x) : overline(alpha)) -> beta$ must
-satisfy $epsilon tack (overline(x) : overline(alpha)) -> beta : "Type" u$ and be a polytype, with the relaxation
+satisfy $epsilon tack (overline(x) : overline(alpha)) -> beta : Type u$ and be a polytype, with the relaxation
 that the rightmost arrow of $beta$ may produce a $"Type u"$. Furthermore, each constructor $"ctor"_i$ must
 satisfy $epsilon tack (overline(x) : overline(a)) -> (overline(y)_i : overline(gamma)_i) -> c " " overline(x) " " overline(t)_i : alpha$,
-where $alpha$ is either $"Type" u$ or $"Prop"$, and must additionally satisfy $tack (overline(y)_i : overline(gamma)_i) -> c " " overline(x) " " overline(t)_i "mono"$
+where $alpha$ is either $Type u$ or $Prop$, and must additionally satisfy $tack (overline(y)_i : overline(gamma)_i) -> c " " overline(x) " " overline(t)_i "mono"$
 to rule out existential types. Finally, all index arguments $overline(t)_i$ appearing in the constructor’s target type must be monoterms.
 
 In the remainder of this section I will describe the reduction from this restricted fragment
@@ -642,16 +648,16 @@ while the other way around both steps have to.
 Dependent types occur in two flavors in the input fragment. First, a function or
 inductive might take an argument that is a proof. This is an issue because Nunchaku has no notion of proof terms,
 so they need to be removed. Second, an inductive type may have term arguments.
-If the inductive type lives in $"Prop"$, this is not an issue because Nunchaku's inductive
-predicates allow term arguments. On the other hand, if the inductive lives in $"Type" u$,
+If the inductive type lives in $Prop$, this is not an issue because Nunchaku's inductive
+predicates allow term arguments. On the other hand, if the inductive lives in $Type u$,
 the term arguments need to be removed as well. 
 
-This distinction between $"Type" u$ and $"Prop"$ generalizes to more than just inductive types.
-For example, the proposition $forall (n : "Nat") (p : "Nat" -> "Prop"). p " " n$ is perfectly
+This distinction between $Type u$ and $Prop$ generalizes to more than just inductive types.
+For example, the proposition $forall (n : "Nat") (p : "Nat" -> Prop). p " " n$ is perfectly
 understandable to Nunchaku, despite involving dependent types. However, the type
 $(n : "Nat") -> "Fin" n$ needs to be changed, because Nunchaku cannot handle the dependency of
-$"Fin"$ on $n$. This shows that the reduction must generally handle types living in $"Type" u$ and
-types living in $"Prop"$ differently.
+$"Fin"$ on $n$. This shows that the reduction must generally handle types living in $Type u$ and
+types living in $Prop$ differently.
 
 For handling proof terms, we can make use of Lean's proof irrelevance. Because the concrete value of
 a proof term cannot change the semantics of a program, they can be erased. This technique of _proof
@@ -668,17 +674,17 @@ one, and the predicate is enforced upon it as needed.
 
 To generate this inductive predicate, they consider an inductive type of the form
 $
-& "inductive" c " " (overline(a) : "Type" u) : (overline(x) : overline(alpha)) ->  "Type" u "where" \
+& inductive c " " (overline(a) : Type u) : (overline(x) : overline(alpha)) ->  Type u where \
 & "ctor"_1 : (overline(y)_1 : overline(beta)_1) -> (overline(z)_1 : c " " overline(a) " " overline(s)_1) -> c " " overline(a) " " overline(u)_1 \
 & dots.v \
 & "ctor"_n : (overline(y)_n : overline(beta)_n) -> (overline(z)_n : c " " overline(a) " " overline(s)_n) -> c " " overline(a) " " overline(u)_n \
 $
 Where $overline(a)$ are the type parameters of $c$, $overline(x)$ the term arguments of $c$,
 $overline(z)$ the recursive occurrences of $c$ in its constructors, and $overline(y)$ the remaining
-constructor arguments. From this, they derive an inductive type $"data"_c " " overline(a) : "Type"
+constructor arguments. From this, they derive an inductive type $"data"_c " " overline(a) : Type
 u$, which drops all term arguments, together with an invariant $"inv"_c$:
 $
-& "inductive" "inv"_c " " (overline(a) : "Type" u) : (overline(x) : overline(alpha)) -> "data"_c " " overline(a) -> "Prop" "where" \
+& inductive "inv"_c " " (overline(a) : Type u) : (overline(x) : overline(alpha)) -> "data"_c " " overline(a) -> Prop where \
 & "ictor"_1 :
   (overline(y)_1 : overline(beta)_1) ->
   (overline(z)_1 : "data"_c " " overline(a) " ") ->
@@ -770,7 +776,7 @@ This new invariant correctly restricts the occurrences of `Fin 0` and thus prese
 
 To formalize this new approach, we will consider inductive types of the shape
 $
-& "inductive" c " " (overline(a) : "Type" u) " " (overline(x) : overline(alpha)) : (overline(y) : overline(beta)) -> "Type" u "where" \
+& inductive c " " (overline(a) : Type u) " " (overline(x) : overline(alpha)) : (overline(y) : overline(beta)) -> Type u where \
 & "ctor"_1 : (overline(z)_1 : overline(gamma)_1) -> c " " overline(a) " " overline(x) " " overline(t)_1 \
 & dots.v \
 & "ctor"_n : (overline(z)_n : overline(gamma)_n) -> c " " overline(a) " " overline(x) " " overline(t)_n \
@@ -786,21 +792,21 @@ defined through the course of this section:
   dependent types in $alpha$. In particular, whenever it encounters a binder for a proposition, it
   replaces the bound type with $"Erased"$.
 - $mkinv(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and
-  generates a new expression of type $dentype(alpha, Gamma) -> "Prop"$. These expressions
+  generates a new expression of type $dentype(alpha, Gamma) -> Prop$. These expressions
   are like the invariants from above but generalized to arbitrary monotypes.
 - $denprop(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$, s.t. $Gamma
-  tack alpha : "Prop"$. It eliminates non-propositional dependent types in $alpha$ by injecting the
+  tack alpha : Prop$. It eliminates non-propositional dependent types in $alpha$ by injecting the
   data-carrying variants of inductive types and their invariants as needed.
   This function is the entry point for reducing a proposition.
 - $denterm(t, Gamma)$ takes a context $Gamma$ and a monoterm $t$ and eliminates
   dependent types in $t$.
 - #align(left, block($
   denexpr(e, Gamma) = cases(
-     denprop(e, Gamma) "if" Gamma tack e : "Prop",
-     dentype(e, Gamma) "if" Gamma tack e : "Type" u,
+     denprop(e, Gamma) "if" Gamma tack e : Prop,
+     dentype(e, Gamma) "if" Gamma tack e : Type u,
      denterm(e, Gamma) "otherwise"
    ) $))
-- $Gamma tack t "proof" <-> exists alpha, Gamma tack t : alpha and Gamma tack alpha : "Prop"$
+- $Gamma tack t "proof" <-> exists alpha, Gamma tack t : alpha and Gamma tack alpha : Prop$
 
 
 Furthermore, I define variants of these functions for mapping and folding over vectors:
@@ -821,10 +827,10 @@ $
 Using these auxiliary functions, the data-carrying type $"data"_c$ of an inductive $c$ can be
 derived by dropping all non-type parameters and the term indices:
 $
-& "inductive" "data"_c " " (overline(a) : "Type" u) : "Type" u "where" \
-& "ctor"'_1 : dentype((overline(z)_1 : overline(gamma)_1), (overline(a) : "Type" u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
+& inductive "data"_c " " (overline(a) : Type u) : Type u where \
+& "ctor"'_1 : dentype((overline(z)_1 : overline(gamma)_1), (overline(a) : Type u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
 & dots.v \
-& "ctor"'_n : dentype((overline(z)_n : overline(gamma)_n), (overline(a) : "Type" u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
+& "ctor"'_n : dentype((overline(z)_n : overline(gamma)_n), (overline(a) : Type u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
 $
 The reason that removing all non-type parameters works is that they cannot occur anymore in
 the types of the erased constructor parameters $overline(z)_i$.
@@ -833,14 +839,14 @@ For restricting the data-carrying type, I use the construction by Cruanes and Bl
 described before. These modifications amount to introducing one additional predicate parameter for
 each type parameter and restricting all constructor arguments:
 $
-  (overline(x) : overline(alpha'))","(overline(y) : overline(beta')) &= dentype((overline(x) : overline(alpha))","(overline(y) : overline(beta)) , (overline(a) : "Type" u)) \
-  (overline(z) : overline(gamma')_i) &= dentype((overline(z)_i : overline(gamma)_i), (overline(a) : "Type" u), (p_overline(a) : overline(a) -> "Prop"), (overline(x) : overline(alpha))) \
-  overline(t')_i &= denterm(overline(t)_i, (overline(a) : "Type" u), (p_overline(a) : overline(a) -> "Prop"), (overline(x) : overline(alpha)), (overline(z)_i : overline(gamma)_i)) \
-  "inv"_(overline(x)) &= mkinv((overline(x) : overline(alpha)), (overline(a) : "Type" u), (p_overline(a) : overline(a) -> "Prop")) \
-  "inv"_(overline(z)_i) &= mkinv((overline(z)_i : overline(gamma)_i), (overline(a) : "Type" u), (p_overline(a) : overline(x) -> "Prop"), (overline(x) : overline(alpha))) \
+  (overline(x) : overline(alpha'))","(overline(y) : overline(beta')) &= dentype((overline(x) : overline(alpha))","(overline(y) : overline(beta)) , (overline(a) : Type u)) \
+  (overline(z) : overline(gamma')_i) &= dentype((overline(z)_i : overline(gamma)_i), (overline(a) : Type u), (p_overline(a) : overline(a) -> Prop), (overline(x) : overline(alpha))) \
+  overline(t')_i &= denterm(overline(t)_i, (overline(a) : Type u), (p_overline(a) : overline(a) -> Prop), (overline(x) : overline(alpha)), (overline(z)_i : overline(gamma)_i)) \
+  "inv"_(overline(x)) &= mkinv((overline(x) : overline(alpha)), (overline(a) : Type u), (p_overline(a) : overline(a) -> Prop)) \
+  "inv"_(overline(z)_i) &= mkinv((overline(z)_i : overline(gamma)_i), (overline(a) : Type u), (p_overline(a) : overline(x) -> Prop), (overline(x) : overline(alpha))) \
 $
 $
-& "inductive" "inv"_c " " (overline(a) : "Type" u) " " (p_overline(a) : overline(a) -> "Prop") " " (overline(x) : overline(alpha')) : (overline(y) : overline(beta')) -> "data"_c " " overline(a) -> "Prop" "where" \
+& inductive "inv"_c " " (overline(a) : Type u) " " (p_overline(a) : overline(a) -> Prop) " " (overline(x) : overline(alpha')) : (overline(y) : overline(beta')) -> "data"_c " " overline(a) -> Prop where \
 & "ictor"_1 :
 ("inv"_overline(x) " " overline(x)) ->
 (overline(z)_1 : overline(gamma')_1) ->
@@ -868,7 +874,7 @@ of a dependent function bound in a constructor.
   column-gutter: 0pt,
   $mkinv(alpha, Gamma)$,
   $= lambda (\_ : "Erased") . denprop(alpha, Gamma)$,
-  $"if" Gamma tack alpha : "Prop"$,
+  $"if" Gamma tack alpha : Prop$,
 
   $mkinv(c " " overline(alpha) " " overline(e) " " overline(t), Gamma)$,
   $= "inv"_c " " dentype(overline(alpha), Gamma) " " mkinv(overline(alpha), Gamma) " " denexpr(overline(e), Gamma) " " denterm(overline(t), Gamma)$,
@@ -882,8 +888,8 @@ of a dependent function bound in a constructor.
      (overline(x) : overline(alpha))) " " (f " " overline(x))$,
   $$,
 
-  $mkinv("Prop", Gamma)$,
-  $= lambda (\_ : "Prop") . top$,
+  $mkinv(Prop, Gamma)$,
+  $= lambda (\_ : Prop) . top$,
   $$,
 
   $mkinv(x, Gamma)$,
@@ -895,7 +901,7 @@ of a dependent function bound in a constructor.
 
 When the invariant generator encounters a proposition, the proposition itself becomes the invariant.
 Inductive types are handled via their associated inductive invariants. In the case of function types,
-the co-domain’s invariant must hold whenever the domain invariants do. Finally, $"Prop"$ imposes no invariant
+the co-domain’s invariant must hold whenever the domain invariants do. Finally, $Prop$ imposes no invariant
 and type variables use their corresponding predicate variables.
 
 Using all of this, I now define the functions for removing dependent types from
@@ -949,14 +955,14 @@ Thus we end up with the following definitions for translating monotypes and mono
 
   $dentype(alpha, Gamma)$,
   $= "Erased"$,
-  $"if" Gamma tack alpha : "Prop"$,
+  $"if" Gamma tack alpha : Prop$,
   
   $dentype(x, Gamma)$,
   $= x$,
   $$,
 
-  $dentype("Prop", Gamma)$,
-  $= "Prop"$,
+  $dentype(Prop, Gamma)$,
+  $= Prop$,
   $$,
 
   $dentype((x : alpha) -> beta, Gamma)$,
@@ -975,13 +981,13 @@ Thus we end up with the following definitions for translating monotypes and mono
 
   $denprop((x : alpha) -> beta, Gamma)$,
   $= (x : denprop(alpha, Gamma)) -> denprop(beta, Gamma, (x : alpha))$,
-  $"if" Gamma tack alpha : "Prop"$,
+  $"if" Gamma tack alpha : Prop$,
 
   $denprop((x : alpha) -> beta, Gamma)$,
   $= &(x : dentype(alpha, Gamma)) \
      &-> mkinv(alpha, Gamma) " " x \
      &-> dentype(beta, Gamma, (x : alpha))$,
-  $"if" Gamma tack alpha : "Type" u$,
+  $"if" Gamma tack alpha : Type u$,
   
   $denprop(c " " overline(alpha) " " overline(e) " " overline(t))$,
   $= c' " " dentype(overline(alpha), Gamma) " " mkinv(overline(alpha), Gamma) " " denexpr(overline(e), Gamma) " " denterm(overline(t), Gamma)$,
@@ -994,21 +1000,21 @@ Translating inductive propositions is quite similar to generating invariants for
 However, instead of generating a separate invariant, the restrictions can be directly injected into the
 introduction rules of the proposition. Given an inductive proposition of the shape
 $
-& "inductive" c " " (overline(a) : "Type" u) " " (overline(x) : overline(alpha)) : (overline(y) : overline(beta)) -> "Prop" "where" \
+& inductive c " " (overline(a) : Type u) " " (overline(x) : overline(alpha)) : (overline(y) : overline(beta)) -> Prop where \
 & "ctor"_1 : (overline(z)_1 : overline(gamma)_1) -> c " " overline(a) " " overline(x) " " overline(t)_1 \
 & dots.v \
 & "ctor"_n : (overline(z)_n : overline(gamma)_n) -> c " " overline(a) " " overline(x) " " overline(t)_n \
 $
 its replacement proposition $c'$ is
 $
-  (overline(x) : overline(alpha'))","(overline(y) : overline(beta')) &= dentype((overline(x) : overline(alpha))","(overline(y) : overline(beta)) , (overline(a) : "Type" u)) \
-  (overline(z) : overline(gamma')_i) &= dentype((overline(z)_i : overline(gamma)_i), (overline(a) : "Type" u), (p_overline(a) : overline(a) -> "Prop"), (overline(x) : overline(alpha))) \
-  overline(t')_i &= denterm(overline(t)_i, (overline(a) : "Type" u), (p_overline(a) : overline(a) -> "Prop"), (overline(x) : overline(alpha)), (overline(z)_i : overline(gamma)_i)) \
-  "inv"_(overline(x)) &= mkinv((overline(x) : overline(alpha)), (overline(a) : "Type" u), (p_overline(a) : overline(a) -> "Prop")) \
-  "inv"_(overline(z)_i) &= mkinv((overline(z)_i : overline(gamma)_i), (overline(a) : "Type" u), (p_overline(a) : overline(x) -> "Prop"), (overline(x) : overline(alpha))) \
+  (overline(x) : overline(alpha'))","(overline(y) : overline(beta')) &= dentype((overline(x) : overline(alpha))","(overline(y) : overline(beta)) , (overline(a) : Type u)) \
+  (overline(z) : overline(gamma')_i) &= dentype((overline(z)_i : overline(gamma)_i), (overline(a) : Type u), (p_overline(a) : overline(a) -> Prop), (overline(x) : overline(alpha))) \
+  overline(t')_i &= denterm(overline(t)_i, (overline(a) : Type u), (p_overline(a) : overline(a) -> Prop), (overline(x) : overline(alpha)), (overline(z)_i : overline(gamma)_i)) \
+  "inv"_(overline(x)) &= mkinv((overline(x) : overline(alpha)), (overline(a) : Type u), (p_overline(a) : overline(a) -> Prop)) \
+  "inv"_(overline(z)_i) &= mkinv((overline(z)_i : overline(gamma)_i), (overline(a) : Type u), (p_overline(a) : overline(x) -> Prop), (overline(x) : overline(alpha))) \
 $
 $
-& "inductive" c' " " (overline(a) : "Type" u) " " (p_overline(a) : overline(a) -> "Prop") " " (overline(x) : overline(alpha')) : (overline(y) : overline(beta')) -> "Prop" "where" \
+& inductive c' " " (overline(a) : Type u) " " (p_overline(a) : overline(a) -> Prop) " " (overline(x) : overline(alpha')) : (overline(y) : overline(beta')) -> Prop where \
 & "ctor"'_1 :
 ("inv"_overline(x) " " overline(x)) ->
 (overline(z)_1 : overline(gamma')_1) ->
@@ -1025,29 +1031,29 @@ $
 The last remaining construct is definitions. Because we only consider definitions with type
 arguments grouped in the beginning, they are of the shape
 $
-& "def" c : (overline(a) : "Type" u) -> beta "where" \
-& forall (overline(a) : "Type" u) (overline(x)_1 : overline(gamma)_1). c " " overline(a) " " overline(t)_1 = u_1 \
+& definition c : (overline(a) : Type u) -> beta where \
+& forall (overline(a) : Type u) (overline(x)_1 : overline(gamma)_1). c " " overline(a) " " overline(t)_1 = u_1 \
 & dots.v \
-& forall (overline(a) : "Type" u) (overline(x)_n : overline(gamma)_n). c " " overline(a) " " overline(t)_n = u_n \
+& forall (overline(a) : Type u) (overline(x)_n : overline(gamma)_n). c " " overline(a) " " overline(t)_n = u_n \
 $
 Given that all inputs to function calls should already be properly constrained by invariants, there
 is no need to enforce any additional invariants in the equations. Thus, the only modifications for a
 definitions are the addition of the predicate parameters for type arguments and dependent type
 erasure:
 $
-beta' &= dentype(beta, (overline(a) : "Type" u)) \
-overline(gamma')_i &= dentype((overline(x)_i : overline(gamma)_i), (overline(a) : "Type" u)) \
-overline(t')_i &= denterm(overline(t)_i, (overline(a) : "Type" u), (overline(p) : overline(a) -> "Type" u), (overline(x)_i : overline(gamma)_i) ) \
-u'_i &= denterm(u_i, (overline(a) : "Type" u), (overline(p) : overline(a) -> "Type" u), (overline(x)_i : overline(gamma)_i) ) \
+beta' &= dentype(beta, (overline(a) : Type u)) \
+overline(gamma')_i &= dentype((overline(x)_i : overline(gamma)_i), (overline(a) : Type u)) \
+overline(t')_i &= denterm(overline(t)_i, (overline(a) : Type u), (overline(p) : overline(a) -> Type u), (overline(x)_i : overline(gamma)_i) ) \
+u'_i &= denterm(u_i, (overline(a) : Type u), (overline(p) : overline(a) -> Type u), (overline(x)_i : overline(gamma)_i) ) \
 $
 $
-& "def" c' : (overline(a) : "Type" u) -> (overline(p) : overline(a) -> "Type" u) -> beta' "where" \
-& forall (overline(a) : "Type" u) (overline(p) : overline(a) -> "Type" u) (overline(x)_1 : overline(gamma')_1). c' " " overline(a) " " overline(t')_1 = u'_1 \
+& definition c' : (overline(a) : Type u) -> (overline(p) : overline(a) -> Type u) -> beta' where \
+& forall (overline(a) : Type u) (overline(p) : overline(a) -> Type u) (overline(x)_1 : overline(gamma')_1). c' " " overline(a) " " overline(t')_1 = u'_1 \
 & dots.v \
-& forall (overline(a) : "Type" u) (overline(p) : overline(a) -> "Type" u) (overline(x)_n : overline(gamma')_n). c' " " overline(a) " " overline(t')_n = u'_n \
+& forall (overline(a) : Type u) (overline(p) : overline(a) -> Type u) (overline(x)_n : overline(gamma')_n). c' " " overline(a) " " overline(t')_n = u'_n \
 $
 
-Using all of this machinery, we can now take a monotype $alpha$ such that $epsilon tack alpha : "Prop"$ and
+Using all of this machinery, we can now take a monotype $alpha$ such that $epsilon tack alpha : Prop$ and
 erase all non-propositional dependent types from it with $denprop(alpha, epsilon)$. This leaves us in
 a fragment where dependent types only occur as universal propositional quantification and
 inductive propositions, both of which are fine for Nunchaku.
@@ -1077,7 +1083,7 @@ $
 
 #align(center, [
   #box(proof-tree(inf-rule(
-    $Gamma tack "Prop" "trivial"$,
+    $Gamma tack Prop "trivial"$,
   )))
   #box(proof-tree(inf-rule(
     $Gamma tack (overline(x) : overline(alpha)) -> beta "trivial"$,
@@ -1097,12 +1103,12 @@ in @sect_case_studies and @sect_eval, it is not generally sound. The reason for 
 reduction sometimes fails to enforce invariants when they are required. For example, consider
 the $"head"$ function on $"Vec"$:
 $
-& "def" "head" : (n : "Nat") -> "Vec" ("succ" n) -> "Nat" "where" \
+& definition "head" : (n : "Nat") -> "Vec" ("succ" n) -> "Nat" where \
 & forall (n : "Nat") (x : "Nat") (t : "Vec" n). "head" n " " ("cons" n " " x " " t) = x \
 $
 After the reduction this function becomes
 $
-& "def" "head"' : "data"_"Nat" -> "data"_"Vec" -> "data"_"Nat" "where" \
+& definition "head"' : "data"_"Nat" -> "data"_"Vec" -> "data"_"Nat" where \
 & forall (n : "data"_"Nat") (x : "data"_"Nat") (t : "data"_"Vec"). "head"' " " n " " ("cons"' " " n " " x " " t) = x \
 $
 Observe that this function is now underspecified; it is missing the $"nil"$ case, which was previously
@@ -1118,7 +1124,7 @@ that $"head"' != "head"'_2$.
 Even though simple cases like $"head" = "head"_2$ can be resolved by explicitly applying function
 extensionality and enforcing invariants on the function inputs, this is not generally possible.
 Equality between underspecified functions might be hidden behind polymorphism. For example, consider a
-predicate $"P" " " (a : "Type u") : a -> a -> "Prop"$ with a single introduction rule
+predicate $"P" " " (a : "Type u") : a -> a -> Prop$ with a single introduction rule
 $"intro" : (l : a) -> (r : a) -> l = r -> "P" " " a " " l " " r$. Instead of exposing the equality
 between functions directly, it could be hidden behind this predicate:
 $ "P" " " ((n : "Nat") -> "Vec" ("succ" n) -> "Nat") "head" "head"_2 $
@@ -1149,7 +1155,7 @@ In practice, the implementation supports any amount of type variables.
 
 The analysis tracks constraints of the form $tau subset.sq.eq x$,
 pronounced "monotype $tau$ flows into variable $x$". These constraints only need to
-handle monotypes that live in $"Type" u$ and dependent types have been eliminated. For
+handle monotypes that live in $Type u$ and dependent types have been eliminated. For
 this reason, both the types in the constraints and the type parameters to polymorphic constants can
 only take on four shapes:
 $ tau ::= x | tau_1 -> tau_2 | c " " tau | c $
@@ -1205,11 +1211,11 @@ achieved by disambiguating them through the name of the polymorphic constant the
   $= {}$,
   $$,
 
-  $coll("Prop")$,
+  $coll(Prop)$,
   $= {}$,
   $$,
 
-  $coll("Type" u)$,
+  $coll(Type u)$,
   $= {}$,
   $$,
 
@@ -1238,7 +1244,7 @@ inductives into account:
   align: horizon,
   align(left, block(
   $
-  & "inductive" c " " (overline(x) : overline(alpha)) : beta "where" \
+  & inductive c " " (overline(x) : overline(alpha)) : beta where \
   & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " "overline(x) " " overline(t)_1 \
   & dots.v \
   & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " "overline(x) " " overline(t)_n \
@@ -1249,7 +1255,7 @@ inductives into account:
   )),
   align(left, block(
   $
-  & "def" c : alpha "where" \
+  & definition c : alpha where \
   & forall overline(x)_1 : overline(beta)_1. c " " overline(e)_1 = u_1 \
   & dots.v \
   & forall overline(x)_n : overline(beta)_n. c " " overline(e)_n = u_n \
@@ -1264,15 +1270,15 @@ Using this scheme, we can for example build the constraint system of a simple te
 $"add" ("length" "Nat" x_1) " " ("length" "String" x_2)$ where $"length"$ is defined as follows:
 #align(left, block(
 $
-& "inductive" "List" (a : "Type") : "Type" "where" \
+& inductive "List" (a : Type) : Type where \
 & "nil" : "List" a \
 & "cons" : a -> "List" a -> "List" a \
 $))
 #align(left, block(
 $
-& "def" "length" : (b : "Type") -> "List" b -> "Nat" "where" \
-& forall (b : "Type"). "length" b "nil" = "zero" \
-& forall (b : "Type") (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
+& definition "length" : (b : Type) -> "List" b -> "Nat" where \
+& forall (b : Type). "length" b "nil" = "zero" \
+& forall (b : Type) (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
 $))
 This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b subset.eq.sq b, a subset.eq.sq a}$
 which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
@@ -1286,12 +1292,12 @@ polymorphic recursion:
   columns: (1fr, 1fr),
   align: center,
 $
-& "inductive" "Tree" (a : "Type") : "Type" "where" \
+& inductive "Tree" (a : Type) : Type where \
 & "leaf" : a -> "Tree" a \
 & "node" : "Tree" ("Two" a) -> "Tree" a \
 $,
 $
-& "inductive" "Two" (b : "Type") : "Type" "where" \
+& inductive "Two" (b : Type) : Type where \
 & "mk" : b -> b -> "Two" b \
 $,
 )
@@ -1391,13 +1397,13 @@ performs transformations on constant declarations.
 
   $mon(c)$,
   $= c$,
-  $mon("Prop")$,
-  $= "Prop"$,
+  $mon(Prop)$,
+  $= Prop$,
 
   $mon(lambda (x : alpha) . t)$,
   $= lambda (x : mon(alpha)) . mon(t)$,
-  $mon("Type" u)$,
-  $= "Type" u$,
+  $mon(Type u)$,
+  $= Type u$,
 
   $mon(c " " rho)$,
   $= c_rho$,
@@ -1426,7 +1432,7 @@ in an expression $e$ with a ground type $rho$.
   row-gutter: 12pt,
   align(left, block(
   $
-  & "inductive" c " " (x : "Type" u) " " (overline(x) : overline(alpha)) : beta "where" \
+  & inductive c " " (x : Type u) " " (overline(x) : overline(alpha)) : beta where \
   & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " " x " " overline(x) " " overline(t)_1 \
   & dots.v \
   & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " " x " " overline(x) " " overline(t)_n \
@@ -1434,22 +1440,22 @@ in an expression $e$ with a ground type $rho$.
   $ arrow.r.squiggly $,
   align(left, block(
   $
-  & "inductive" c_rho " " mon(((overline(x) : overline(alpha)) : beta)[x |-> rho]) "where" \
+  & inductive c_rho " " mon(((overline(x) : overline(alpha)) : beta)[x |-> rho]) where \
   & "ctor"_1 : mon(((overline(y)_1 : overline(gamma)_(1))  -> c " " x " " overline(x) " " overline(t)_1)[x |-> rho]) \
   & dots.v \
   & "ctor"_n : mon(((overline(y)_n : overline(gamma)_(n)) -> c " " x " " overline(x) " " overline(t)_n)[x |-> rho])\
   $)),
   align(left, block(
   $
-  & "def" c : (x : "Type" u) -> alpha "where" \
-  & forall (x : "Type" u) (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1 \
+  & definition c : (x : Type u) -> alpha where \
+  & forall (x : Type u) (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1 \
   & dots.v \
-  & forall (x : "Type" u) (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n \
+  & forall (x : Type u) (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n \
   $)),
   $ arrow.r.squiggly $,
   align(left, block(
   $
-  & "def" c_rho : mon(alpha[x |-> rho]) "where" \
+  & definition c_rho : mon(alpha[x |-> rho]) where \
   & mon((forall (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1)[x |-> rho]) \
   & dots.v \
   & mon((forall (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n)[x |-> rho]) \
