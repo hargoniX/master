@@ -1148,17 +1148,17 @@ the analysis for problems where each constant has at most one type parameter (ju
 In practice, the implementation supports any amount of type variables.
 
 The analysis tracks constraints of the form $tau subset.sq.eq x$,
-pronounced "monotype $tau$ flows into type variable $x$". These constraints only need to
+pronounced "monotype $tau$ flows into variable $x$". These constraints only need to
 handle monotypes that live in $"Type" u$ and dependent types have been eliminated. For
 this reason, both the types in the constraints and the type parameters to polymorphic constants can
 only take on four shapes:
 $ tau ::= x | tau_1 -> tau_2 | c " " tau | c $
 
 For collecting the constraints, I define a function $"C"$ that operates on both types and
-terms. Just like the dependent type elimination, this function assumes that the type arguments
+terms. Similar to the dependent type elimination, this function assumes that the type arguments
 are grouped in the beginning of a constant application. Furthermore, to simplify the presentation,
 it also assumes that the names of all type variables are globally unique. In practice this can be
-achieved by disambiguating them through the name of the polymorphic constant they are attached to.
+achieved by disambiguating them through the name of the polymorphic constant they are attached to:
 
 #let coll(e) = $"C"(#e)$
 
@@ -1228,47 +1228,57 @@ achieved by disambiguating them through the name of the polymorphic constant the
 ]
 
 Note that $"C"$ still has to consider the dependent arrow and term arguments to types because that
-is how propositions are encoded. In addition to these constraints collected from terms and types
+is how propositions are encoded. In addition to the constraints collected from terms and types
 directly, constant declarations naturally impose some constraints too. Again, due to
 propositional dependent types, these constraints have to take the possibility of dependently typed
 inductives into account:
 #table(
-  columns: (1fr, 1fr),
+  columns: (160pt, 100pt, 230pt),
   stroke: none,
-  align: left+horizon,
+  align: horizon,
+  align(left, block(
   $
   & "inductive" c " " (overline(x) : overline(alpha)) : beta "where" \
   & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " "overline(x) " " overline(t)_1 \
   & dots.v \
   & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " "overline(x) " " overline(t)_n \
-  $,
-  $ C((overline(x) : overline(alpha)) -> beta) union union.big_(i=0)^n C((overline(y)_i : overline(gamma)_i) -> c " "overline(x) " " overline(t)_i) $,
+  $)),
+  $ arrow.r.squiggly $,
+  align(left, block(
+  $ C((overline(x) : overline(alpha)) -> beta) union union.big_(i=0)^n C((overline(y)_i : overline(gamma)_i) -> c " "overline(x) " " overline(t)_i) $
+  )),
+  align(left, block(
   $
   & "def" c : alpha "where" \
   & forall overline(x)_1 : overline(beta)_1. c " " overline(e)_1 = u_1 \
   & dots.v \
   & forall overline(x)_n : overline(beta)_n. c " " overline(e)_n = u_n \
-  $,
+  $)),
+  $ arrow.r.squiggly $,
+  align(left, block(
   $ coll(alpha) union union.big_(i=0)^n (coll(overline(beta)_i) union coll(c " " overline(e)_i) union coll(u_i)) $
+  ))
 )
 
 Using this scheme, we can for example build the constraint system of a simple term
 $"add" ("length" "Nat" x_1) " " ("length" "String" x_2)$ where $"length"$ is defined as follows:
+#align(left, block(
 $
 & "inductive" "List" (a : "Type") : "Type" "where" \
 & "nil" : "List" a \
 & "cons" : a -> "List" a -> "List" a \
-$
+$))
+#align(left, block(
 $
 & "def" "length" : (b : "Type") -> "List" b -> "Nat" "where" \
 & forall (b : "Type"). "length" b "nil" = "zero" \
 & forall (b : "Type") (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
-$
+$))
 This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b subset.eq.sq b, a subset.eq.sq a}$
 which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
-However, a finite solution cannot always be found. 
+However, a finite solution cannot always be found.
 
-The reason that we may fail to find a finite solution are various kinds of polymorphic recursion.
+The reason that we may fail to find a finite solution is polymorphic recursion.
 Polymorphic recursion occurs whenever recursive occurrences of a constant have other type parameters
 than the constant itself. For example, binary trees encoded using polymorphic pairs exhibit
 polymorphic recursion:
@@ -1285,12 +1295,13 @@ $
 & "mk" : b -> b -> "Two" b \
 $,
 )
-These type declarations give rise to the constraints ${"Two" a subset.eq.sq a, a subset.eq.sq b, a subset.eq.sq a, b subset.eq.sq b}$. 
+These type declarations give rise to the constraints ${"Two" a subset.eq.sq a, a subset.eq.sq b, a subset.eq.sq a, b subset.eq.sq b}$.
 Here the constraint $"Two" a subset.eq.sq a$ presents an issue because it requires instantiating $a$
-with an infinite set of types of the shape $"Two" a, "Two" ("Two" a)$ and so on.
+with an infinite set of types of the shape $"Two" a, "Two" ("Two" a), "Two" ("Two" ("Two" a))$ and so on.
+This makes monomorphization for this problem infeasible because we cannot generate infinitely many type declarations.
 
 In order to detect these situations, Lutze et al. convert the constraints into a directed graph and
-detect these cyclic flows within the graph. For a given set of constraints $R$ this graph $G = (V, E)$ can
+detect harmful cyclic flows within the graph. For a given set of constraints $R$ this graph $G = (V, E)$ can
 be derived as follows:
 $
   V &= { x | tau subset.eq.sq x in R } \
@@ -1312,12 +1323,12 @@ The constraint system $R$ is then solvable iff there exists no $e in E$ with $"m
 on a cycle in $G$.
 
 In their artifact @typeflowartifact Lutze et al. use repeated BFS from the destination
-node to the origin node of each marked edge to search for such a cycle. For sufficiently large
-constraint systems this can turn out to be wasteful as it might repeatedly explore parts of
-the graph unnecessarily. Instead, I use an algorithm based on strongly connected
-components. #footnote[The idea of using SCCs for this was presented to me by Siddharth Bhat in private communications]
-The algorithm assumes the existence of a subroutine $"SCC"(G)$ that computes a map from the nodes of
-$G$ to some unique identifier of the SCC it is a member of. This can be done using Trajan's
+node to the origin node of each marked edge to search for such a cycle. However, this is wasteful as
+it might repeatedly explore parts of the graph unnecessarily. Instead, I use an algorithm based on strongly connected
+components. #footnote[The idea of using SCCs for this was given to me by Siddharth Bhat in private communications]
+It uses the fact that two vertices are on a cycle iff they are in the same SCC.
+The algorithm assumes the existence of a subroutine $"SCC"(G)$ that computes a map from each node of
+$G$ to a unique identifier of the SCC it is a member of. This can be done using Trajan's
 algorithm in time $O(abs(V) + abs(E))$. Overall the run time of the algorithm is bounded by the SCC
 finding and thus $O(abs(V) + abs(E))$.
 #pseudocode-list(booktabs: true)[
@@ -1325,9 +1336,9 @@ finding and thus $O(abs(V) + abs(E))$.
     - constraint graph $G$
     - precomputed marking table $"mark"$
   - *output* true if the constraint system behind $G$ is solvable, false otherwise
-  + $"sccs" = "SCC"(G)$
+  + $"scc" = "SCC"(G)$
   + *for* $(y, x)$ *in* $E$ *do*
-    + *if* $"mark"((y, x)) = top and "sccs"(y) = "sccs"(x)$ *then*
+    + *if* $"mark"((y, x)) = top and "scc"(y) = "scc"(x)$ *then*
       + *return* false
   + *return* true
 ]
@@ -1358,8 +1369,8 @@ A solution for a set of constraints can be interpreted as a map $S$ from type va
 of ground types $S(x)$ that each type variable may be instantiated with.
 
 Using this solution $S$, we can monomorphize the original problem that gave rise to the constraint
-system. Similar to constraint collection this step uses a function $"M"$ on types and values and
-performs transformations on constant declarations. 
+system. Similar to constraint collection this step uses a function $"M"$ on types and terms and
+performs transformations on constant declarations.
 
 #let mon(e) = $"M"(#e)$
 
@@ -1409,33 +1420,40 @@ constructors/equations. For a polymorphic constant $c$ with type argument $x$ we
 copy for every $rho in S(x)$. I use the notation $e[x |-> rho]$ for substituting a type variable $x$
 in an expression $e$ with a ground type $rho$.
 #table(
-  columns: (1fr, 1fr),
+  columns: (230pt, 30pt, 240pt),
   stroke: none,
-  align: left+horizon,
+  align: horizon,
+  row-gutter: 12pt,
+  align(left, block(
   $
   & "inductive" c " " (x : "Type" u) " " (overline(x) : overline(alpha)) : beta "where" \
   & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " " x " " overline(x) " " overline(t)_1 \
   & dots.v \
   & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " " x " " overline(x) " " overline(t)_n \
-  $,
+  $)),
+  $ arrow.r.squiggly $,
+  align(left, block(
   $
   & "inductive" c_rho " " mon(((overline(x) : overline(alpha)) : beta)[x |-> rho]) "where" \
   & "ctor"_1 : mon(((overline(y)_1 : overline(gamma)_(1))  -> c " " x " " overline(x) " " overline(t)_1)[x |-> rho]) \
   & dots.v \
   & "ctor"_n : mon(((overline(y)_n : overline(gamma)_(n)) -> c " " x " " overline(x) " " overline(t)_n)[x |-> rho])\
-  $,
+  $)),
+  align(left, block(
   $
   & "def" c : (x : "Type" u) -> alpha "where" \
   & forall (x : "Type" u) (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1 \
   & dots.v \
   & forall (x : "Type" u) (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n \
-  $,
+  $)),
+  $ arrow.r.squiggly $,
+  align(left, block(
   $
   & "def" c_rho : mon(alpha[x |-> rho]) "where" \
   & mon((forall (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1)[x |-> rho]) \
   & dots.v \
   & mon((forall (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n)[x |-> rho]) \
-  $,
+  $)),
 )
 
 After applying this transformation, we are left with a logic with only propositional dependent types
@@ -1802,7 +1820,7 @@ the root node is not greater than its left child's.
 - If too much space: ablation study with taking away solvers
 
 #pagebreak(weak: true)
-= Outlook (1P) <sect_outlook>
+= Conclusion (1P) <sect_conclusion>
 Things for future work:
 - extending the fragment of Lean that is supported:
   - allowing for type producing functions
