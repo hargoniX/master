@@ -1137,25 +1137,25 @@ With dependent types out of the way, we are left with a logic with rank-1 polymo
 principle, this logic can be translated to Nunchaku immediately, since Nunchaku supports rank-1 polymorphism.
 However, as explained previously, Lean supports much more expressive variants of
 polymorphism. While they are currently ignored, it would be better to use an approach that can later
-be extended to support a larger fragment of Lean as well. Recent work by Lutze at al. @monotypeflow
+be extended to support a larger fragment of Lean as well. Recent work by Lutze et al. @monotypeflow
 provides such an extensible framework.
 
 Lutze et al. use a type flow analysis to monomorphize both higher-ranked and existential
 polymorphism. The analysis proceeds in three phases to monomorphize a program.
 First, it traverses the program and generates constraints based on what types
 polymorphic constants are directly applied to. Then, it determines whether these constraints admit a finite
-solution and if they do, determines a solution through fixpoint iteration. This solution is a map
+solution, and if they do, it determines a solution through fixpoint iteration. This solution is a map
 from type variables to the set of types with which they might be instantiated. Lastly, the analysis
 traverses the program again and instantiates each polymorphic constant according to the solution.
 
 In the remainder of this section, I present an adaptation of their type flow analysis to the
 flavor of rank-1 polymorphism required for this work. To simplify the presentation, I only describe
-the analysis for problems where each constant has at most one type parameter (just like Lutze. et al).
-In practice, the implementation supports any amount of type variables.
+the analysis for problems where each constant has at most one type parameter (just like Lutze et al.).
+In practice, the implementation supports any number of type variables.
 
 The analysis tracks constraints of the form $tau subset.sq.eq x$,
 pronounced "monotype $tau$ flows into variable $x$". These constraints only need to
-handle monotypes that live in $Type u$ and dependent types have been eliminated. For
+handle monotypes that live in $Type u$, and dependent types have been eliminated. For
 this reason, both the types in the constraints and the type parameters to polymorphic constants can
 only take on four shapes:
 $ tau ::= x | tau_1 -> tau_2 | c " " tau | c $
@@ -1268,8 +1268,8 @@ inductives into account:
   ))
 )
 
-Using this scheme, we can for example build the constraint system of a simple term
-$"add" ("length" "Nat" x_1) " " ("length" "String" x_2)$ where $"length"$ is defined as follows:
+Using this scheme, we can, for example, build the constraint system of a simple term
+$"add" ("length" "Nat" x_1) " " ("length" "String" x_2)$, where $"length"$ is defined as follows:
 #align(left, block(
 $
 & inductive "List" (a : Type) : Type where \
@@ -1282,9 +1282,9 @@ $
 & forall (b : Type). "length" b "nil" = "zero" \
 & forall (b : Type) (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
 $))
-This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b subset.eq.sq b, a subset.eq.sq a}$
-which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$. To monomorphize the
-program we would then have to build copies of $"List"$ and $"length"$ instantiated with each of the
+This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b
+subset.eq.sq b, a subset.eq.sq a}$, which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
+To monomorphize the program, we would have to build copies of $"List"$ and $"length"$ instantiated with each of the
 solutions for their type variables. However, a finite solution cannot always be found.
 
 The reason that we may fail to find a finite solution is polymorphic recursion.
@@ -1306,12 +1306,12 @@ $,
 )
 These type declarations give rise to the constraints ${"Two" a subset.eq.sq a, a subset.eq.sq b, a subset.eq.sq a, b subset.eq.sq b}$.
 Here the constraint $"Two" a subset.eq.sq a$ presents an issue because it requires instantiating $a$
-with an infinite set of types of the shape $"Two" a, "Two" ("Two" a), "Two" ("Two" ("Two" a))$ and so on.
+with an infinite set of types of the shape $"Two" a, "Two" ("Two" a), "Two" ("Two" ("Two" a))$, and so on.
 This makes monomorphization for this problem infeasible because we cannot generate infinitely many
 specialized copies of $"Tree"$.
 
 In order to detect these situations, Lutze et al. convert the constraints into a directed graph and
-detect harmful cyclic flows within the graph. For a given set of constraints $R$ this graph $G = (V, E)$ can
+detect harmful cyclic flows within the graph. For a given set of constraints $R$, this graph $G = (V, E)$ can
 be derived as follows:
 $
   V &= { x | tau subset.eq.sq x in R } \
@@ -1332,14 +1332,14 @@ $
 The constraint system $R$ is then solvable iff there exists no $e in E$ with $"mark"(e) = top$ that is
 on a cycle in $G$.
 
-In their artifact @typeflowartifact Lutze et al. use repeated BFS from the destination
+In their artifact @typeflowartifact, Lutze et al. use repeated BFS from the destination
 node to the origin node of each marked edge to search for such a cycle. However, this is wasteful as
 it might repeatedly explore parts of the graph unnecessarily. Instead, I use an algorithm based on strongly connected
 components. #footnote[The idea of using SCCs for this was given to me by Siddharth Bhat in private communications]
 It uses the fact that two vertices are on a cycle iff they are in the same SCC.
 The algorithm assumes the existence of a subroutine $"SCC"(G)$ that computes a map from each node of
 $G$ to a unique identifier of the SCC it is a member of. This can be done using Trajan's
-algorithm in time $O(abs(V) + abs(E))$. Overall the run time of the algorithm is bounded by the SCC
+algorithm in time $O(abs(V) + abs(E))$. Overall, the run time of the algorithm is bounded by the SCC
 finding and thus $O(abs(V) + abs(E))$.
 #pseudocode-list(booktabs: true)[
   - *input*:
@@ -1379,7 +1379,7 @@ A solution for a set of constraints can be interpreted as a map $S$ from type va
 of ground types $S(x)$ that each type variable may be instantiated with.
 
 Using this solution $S$, we can monomorphize the original problem that gave rise to the constraint
-system. Similar to constraint collection this step uses a function $"M"$ on types and terms and
+system. Similarly to constraint collection, this step uses a function $"M"$ on types and terms and
 performs transformations on constant declarations.
 
 #let mon(e) = $"M"(#e)$
@@ -1426,7 +1426,7 @@ performs transformations on constant declarations.
 )]
 
 For a constant without type arguments, monomorphization amounts to running $"M"$ on its type and
-constructors/equations. For a polymorphic constant $c$ with type argument $x$ we need to generate a
+constructors/equations. For a polymorphic constant $c$ with type argument $x$, we need to generate a
 copy for every $rho in S(x)$. I use the notation $e[x |-> rho]$ for substituting a type variable $x$
 in an expression $e$ with a ground type $rho$.
 #table(
