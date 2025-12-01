@@ -12,7 +12,10 @@
 #let definition = $bold("def")$
 #let Type = $"Type"$
 #let Prop = $"Prop"$
+#let type = $"type"$
+#let prop = $"prop"$
 #let where = $bold("where")$
+#let pred = $bold("pred")$
 
 #let target_date = datetime(year: 2026, month: 1, day: 23)
 #show : official.with(
@@ -307,7 +310,7 @@ its authors.
 Nunchaku's type and term language is based on @HOL, enriched with several built-in concepts. The
 relevant fragment for this work is given by the following grammar:
 $
-  alpha ::=& Type | Prop | x | alpha -> alpha | c " " overline(alpha) | Pi x . alpha & "   " & "types"  \
+  alpha ::=& type | prop | x | alpha -> alpha | c " " overline(alpha) | Pi x . alpha & "   " & "types"  \
   t ::=& c | x | t " " t | lambda x : alpha . t | "let" x : alpha := t; t | forall x : alpha . t | exists x : alpha . t \
     & | top | bot | not t | t or t | t and t | t => t | t = t | "if" t "then" t "else" t & "   " & "terms" \
 $
@@ -406,7 +409,7 @@ The last important pass for this work is the elimination of `pred` into `rec`. I
 inspired by the encoding of inductive predicates used by Nitpick @nitpickpred. The encoding is
 based on the fact that given an inductive predicate $p$ of the shape
 $
-  & "pred" p : alpha_1 -> ... -> alpha_m -> Prop where \
+  & pred p : alpha_1 -> ... -> alpha_m -> prop where \
   & forall overline(y)_1 . p " " overline(t)_11 and ... and p " " overline(t)_(1cal(l)_1) and Q_1 => p " " overline(u)_1 \
   & dots.v \
   & forall overline(y)_n . p " " overline(t)_(n 1) and ... and p " " overline(t)_(n cal(l)_n) and Q_n => p " " overline(u)_n\
@@ -1437,33 +1440,33 @@ in an expression $e$ with a ground type $rho$.
   inset: 0pt,
   align(left, block(
   $
-  & inductive c " " (x : Type u) " " (overline(x) : overline(alpha)) : beta where \
-  & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " " x " " overline(x) " " overline(t)_1 \
+  & inductive c " " (a : Type u) " " (overline(x) : overline(alpha)) : beta where \
+  & "ctor"_1 : (overline(y)_1 : overline(gamma)_1) -> c " " a " " overline(x) " " overline(t)_1 \
   & dots.v \
-  & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " " x " " overline(x) " " overline(t)_n \
+  & "ctor"_n : (overline(y)_n : overline(gamma)_n) -> c " " a " " overline(x) " " overline(t)_n \
   $)),
   $ arrow.r.squiggly $,
   align(left, block(
   $
-  & inductive c_rho " " mon(((overline(x) : overline(alpha)) : beta)[x |-> rho]) where \
-  & "ctor"_1 : mon(((overline(y)_1 : overline(gamma)_(1))  -> c " " x " " overline(x) " " overline(t)_1)[x |-> rho]) \
+  & inductive c_rho " " mon(((overline(x) : overline(alpha)) : beta)[a |-> rho]) where \
+  & "ctor"_1 : mon(((overline(y)_1 : overline(gamma)_(1))  -> c " " a " " overline(x) " " overline(t)_1)[a |-> rho]) \
   & dots.v \
-  & "ctor"_n : mon(((overline(y)_n : overline(gamma)_(n)) -> c " " x " " overline(x) " " overline(t)_n)[x |-> rho])\
+  & "ctor"_n : mon(((overline(y)_n : overline(gamma)_(n)) -> c " " a " " overline(x) " " overline(t)_n)[a |-> rho])\
   $)),
   align(left, block(
   $
-  & definition c : (x : Type u) -> alpha where \
-  & forall (x : Type u) (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1 \
+  & definition c : (a : Type u) -> alpha where \
+  & forall (a : Type u) (overline(x)_1 : overline(beta)_1). c " " a " " overline(e)_1 = u_1 \
   & dots.v \
-  & forall (x : Type u) (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n \
+  & forall (a : Type u) (overline(x)_n : overline(beta)_n). c " " a " " overline(e)_n = u_n \
   $)),
   $ arrow.r.squiggly $,
   align(left, block(
   $
-  & definition c_rho : mon(alpha[x |-> rho]) where \
-  & mon((forall (overline(x)_1 : overline(beta)_1). c " " x " " overline(e)_1 = u_1)[x |-> rho]) \
+  & definition c_rho : mon(alpha[a |-> rho]) where \
+  & mon((forall (overline(x)_1 : overline(beta)_1). c " " a " " overline(e)_1 = u_1)[a |-> rho]) \
   & dots.v \
-  & mon((forall (overline(x)_n : overline(beta)_n). c " " x " " overline(e)_n = u_n)[x |-> rho]) \
+  & mon((forall (overline(x)_n : overline(beta)_n). c " " a " " overline(e)_n = u_n)[a |-> rho]) \
   $)),
 )
 
@@ -1475,37 +1478,127 @@ more variants of polymorphism in the future by extending $"C"$ and $"M"$ as requ
 #pagebreak(weak: true)
 
 = Implementation (5P) <sect_impl>
+While the previous section provides the theoretical design for a finite model finder for Lean, there
+are still additional steps required to integrate it with Lean. In this section I describe both the
+implementation on the Lean side as well as modifications made to Nunchaku for improving performance
+on the generated problems.
 
 == The Lean Frontend (3P) <sect_impl_lean>
-/*
-The elimination is guided by a few core principles:
-- try to stay in well typed Lean for as long as possible in order to:
-  - make use of the extensive meta framework available in Lean
-  - make use of the type checker for detecting bugs in the implementation during development time
-- unlike a proof tactic, the reductions we perform do not have to be proof producing and can thus
-  pull off some things that are not possible in usual Lean tactics
-- aggressive use of shared subterms and caching of results
+On the Lean side I implemented a new tactic called Chako. Chako can be called at any point during a
+Lean proof and will attempt to translate the current proof state to Nunchaku's logic. If this step
+succeeds, it invokes Nunchaku up to a default timeout of ten seconds in search for a counterexample.
+If Nunchaku manages to find a counterexample, it is translated backwards along the pipeline steps of
+Chako to provide a readable counterexample to the user.
 
+Given that Chako, just like Nunchaku, is in essence a sequence of reduction pipelines with a back
+and forward translation mechanism, I decided to adapt Nunchaku's pipeline data type to Lean for this
+purpose.
+```lean
+structure TransformationInner (a b c d st : Type) where
+  name : String
+  encode : a → TransforM (b × st)
+  decode : st → c → TransforM d
 
-We eliminate:
-+ comfort features:
-  - universe parameters
-    - can prove that we want to instantiate them with $1$ in order to avoid `Sort <stuff>` arguments
-      falling into `Prop`
-  - `let` in the local context
-  - type arguments from the local context
-+ Dependent types
-  - using the translation from above
-  - special casing a few things
-    - logical connectives like `And`, `Or` etc.
-    - `matcher` and `casesOn` with custom equations
-    - literals:
-      - mention issue with large nat literals
-+ Monomorphisation
-  - essentially a 1:1 implementation of the above algorithm
+structure Transformation (a b c d : Type) where
+  {st : Type}
+  inner : TransformationInner a b c d st
 
-In addition to that we infer and annotate `[wf]` predicates for Nunchaku.
-*/
+inductive Pipeline : Type → Type → Type → Type → Type 1 where
+  | tip (trans : Transformation a b c d) : Pipeline a b c d
+  | compose (trans : Transformation a b e f) (pipe : Pipeline b c d e)
+    : Pipeline a c d f
+```
+Each pipeline step has four type arguments, consisting of the input and output type for its encoding
+step, as well as the input and output type for its decoding step. Because these types are tracked
+explicitly, they can be composed in a type safe manner using the `compose` constructor. In addition
+to these four type arguments, each `Transformation` carries an existential type `st`. This
+existential type can be output as part of the encoding step and will then later be fed back into the
+decoding step. Each pipeline step can use its `st` to store information such as the name mappings
+used during encoding etc., which are later useful for recovering a counterexample.
+
+In the implementation of the pipeline, none of the pipeline steps ever leaves Lean's own expression
+representation. This has a three advantages. First, all of the pipeline steps can make use of Lean's
+powerful metaprogramming API for type inference, reduction, working with binders etc. Second, the Lean kernel is able to
+verify that each of the pipeline steps did at least produce something type correct. This is extremly
+useful for finding bugs during implementation. However, it can make the system slow during actual
+use and can thus be disabled using a Lean option. Lastly, Lean makes it very easy to build fast
+caches keyed by expressions. This makes it possible to, for example, aggressively cache results of
+what subterms are proof terms or not without having to go through type inference repeatedly.
+
+The implemented pipeline of Chako consists of five steps. First, it infers information
+necessary for the translation. Afterwards, it eliminates comfort features from Lean's logic before
+invoking the dependent type elimination and monomorphization from @sect_reduct. The resulting problem
+is then handed off to Nunchaku with a simple syntactic translation.
+
+Before starting the translation, Chako collects two important pieces of information. First, it
+derives all of the equations for the definitions involved in the current proof state. This is
+mostly done using Lean's `Meta.getEqnsFor?` facility. However, this API does not offer equations for
+all definitions. The most notable exceptions are "matchers" and "casesOn" which may be used to
+encode nested pattern matching in other equations built by `Meta.getEqnsFor?`. For these two groups
+of definitions, Chako has special support for synthesizing its own equations.
+
+Secondly, Chako attempts to infer for each inductive predicate whether it is well-founded. To do
+this, it follows the same approach as Nitpick: Translate the well-foundedness problem to a termination
+problem and use the system's built-in termination prover to establish well-foundedness. Because
+Lean's termination prover is equipped with some domain-specific knowledge, this process can even
+establish well-foundedness for inductives such as:
+```lean
+inductive Below (p : Nat → Prop) : Nat → Prop where
+  | here (n : Nat) (h : p n) : Below p n
+  | lower (n m : Nat) (h1 : n < m) (h2 : p n) : Below p m
+```
+Each of the pipeline steps propagates which inductive predicates are well-founded until they are
+eventually marked as `[wf]` in the output to Nunchaku.
+
+With all of the necessary information collected, the pipeline proceeds to clean up the current proof
+state in preparation for the reduction. This amounts to liberal applications of reduction, applying
+function extensionality to avoid unsoundness where possible and eliminating type parameters. The
+latter is necessary because the monomorphizer will later attempt to generate specialized copies of
+constant declarations. However, these copies may of course not use local type variables of a
+theorem. In order to avoid this, Chako replaces the local type variables with global axioms of the
+shape `axiom a : Type`. Because these axioms are global constants, they can be used in any other
+constant declarations as well. Later, in the translation step to Nunchaku's logic, these axioms are
+emitted as uninterpreted types of the shape `val a : type`.
+
+After the cleanup step, Chako eliminates dependent types as described in @sect_trans_dtt. The
+practical implementation takes three notable deviations from the theoretical description. First, it
+supports arbitrary interleavings of type and term parameters to constants. Second, it treats some
+logical connectives such as Lean's `And`, `Iff`, `Eq`, and `Exists`, specially so they can later be directly
+translated to Nunchaku's logic. This is useful because many of Nunchaku's backend solvers have
+special support for these constants so encoding them directly instead of as inductive predicates
+improves their reasoning abilities. Last, it has special support for the previously mentioned
+matchers and casesOn constructs. This is necessary because they use a kind of dependently-typed polymorphism that is
+out of scope for the general translation. Fortunately, these constants are almost always used in a way
+where they can be monomorphized easily on the fly. Thus, this step ensures they do not cause trouble
+in the monomorphization.
+
+The last step before producing the Nunchaku problem is the monomorphizer. Like the dependent
+type elimination, it is slightly generalized from its theoretical description in @sect_trans_poly.
+The monomorphizer too supports arbitrary interleavings of term and type parameters and also any
+number of type parameters instead of just one. Handling more than one type parameter can be achieved
+in two ways. Either, each type argument can be tracked as an individual constraint variable, or the
+type arguments of each constant are grouped and tracked as a vector-valued constraint variable.
+These vector-valued variables, have the advantage that they reduce code explosion at the cost of a
+more complex implementation. To observe the reduction in code explosion, consider the map function on
+lists:
+```lean
+def List.map {α β : Type} (f : α → β) (xs : List α) : List β :=
+  match xs with
+  | [] => []
+  | x :: xs => f x :: map f xs
+```
+When `List.map` is called with `(Nat, String)` and `(String, Nat)` respectively, tracking each type
+variable individually requires us to generate 4 copies of `List.map`: `(Nat, Nat)`, `(Nat, String)`,
+`(String, Nat)`, and `(String, String)`. On the other hand, if they are tracked as vectors, we only need
+to generate the actually necessary copies `(Nat, String)` and `(String, Nat)`. For this reason, Chako
+implements the vector-valued approach.
+
+The final step of Chako's pipeline is the hand-off to Nunchaku. This step requires only minor
+syntactic adjustments, such as translating (dependent) function types to either regular function
+types or universal quantification etc. Finally, Chako invokes Nunchaku on the generated problem and
+uses its pipeline infrastructure to recover a counterexample if one is found.
+
+#pagebreak(weak: true)
 
 == Extending Nunchaku (2P) <sect_impl_nunchaku>
 In addition to implementing Chako, I made several modifications to Nunchaku to improve the
