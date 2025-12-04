@@ -1532,21 +1532,20 @@ more variants of polymorphism in the future by extending $"C"$ and $"M"$ as requ
 #pagebreak(weak: true)
 
 = Implementation (5P) <sect_impl>
-While the previous section provides the theoretical design for a finite model finder for Lean, there
-are still additional steps required to integrate it with Lean. In this section I describe both the
-implementation on the Lean side as well as modifications made to Nunchaku for improving performance
+While the previous section provides a theoretical approach for finite model finding in Lean, there
+are still additional steps required to integrate this approach with Lean. In this section I describe both the
+implementation on the Lean side and the modifications I made to Nunchaku for improving its performance
 on the generated problems.
 
 == The Lean Frontend (3P) <sect_impl_lean>
-On the Lean side I implemented a new tactic called Chako. Chako can be called at any point during a
-Lean proof and will attempt to translate the current proof state to Nunchaku's logic. If this step
-succeeds, it invokes Nunchaku up to a default timeout of ten seconds in search for a counterexample.
-If Nunchaku manages to find a counterexample, it is translated backwards along the pipeline steps of
+On the Lean side, I implemented a new tactic called Chako. Chako can be called at any point during a
+Lean proof and will attempt to translate the current proof state to Nunchaku's logic. If this
+succeeds, it invokes Nunchaku to search for a counterexample, up to a default timeout of ten seconds.
+When Nunchaku finds a counterexample, it is translated backwards along the pipeline steps of
 Chako to provide a readable counterexample to the user.
 
-Given that Chako, just like Nunchaku, is in essence a sequence of reduction pipelines with a back
-and forward translation mechanism, I decided to adapt Nunchaku's pipeline data type to Lean for this
-purpose.
+Given that Chako, just like Nunchaku, is in essence a pipeline of reduction steps with a forwards
+and backwards translation, I adapted Nunchaku's pipeline type to Lean:
 ```lean
 structure TransformationInner (a b c d st : Type) where
   name : String
@@ -1564,51 +1563,52 @@ inductive Pipeline : Type → Type → Type → Type → Type 1 where
 ```
 Each pipeline step has four type arguments, consisting of the input and output type for its encoding
 step, as well as the input and output type for its decoding step. Because these types are tracked
-explicitly, they can be composed in a type safe manner using the `compose` constructor. In addition
-to these four type arguments, each `Transformation` carries an existential type `st`. This
-existential type can be output as part of the encoding step and will then later be fed back into the
-decoding step. Each pipeline step can use its `st` to store information such as the name mappings
-used during encoding etc., which are later useful for recovering a counterexample.
+explicitly, pipelines can be composed in a type-safe manner using the `compose` constructor. In addition
+to these four type arguments, each `Transformation` carries an existential type `st`. Values of this
+type are part of the output of the encoding step. Later these values are fed back into the
+decoding step. Each pipeline step can use its `st` to store information generated during the
+encoding that is useful for decoding a counterexample. For example, the monomorphization step
+stores which polymorphic constant each monomorphized constant is derived from.
 
-In the implementation of the pipeline, none of the pipeline steps ever leaves Lean's own expression
-representation. This has a three advantages. First, all of the pipeline steps can make use of Lean's
-powerful metaprogramming API for type inference, reduction, working with binders etc. Second, the Lean kernel is able to
-verify that each of the pipeline steps did at least produce something type correct. This is extremly
-useful for finding bugs during implementation. However, it can make the system slow during actual
-use and can thus be disabled using a Lean option. Lastly, Lean makes it very easy to build fast
-caches keyed by expressions. This makes it possible to, for example, aggressively cache results of
-what subterms are proof terms or not without having to go through type inference repeatedly.
+In the implemented encoding pipeline, none of the pipeline steps ever leaves Lean's own expression
+representation. This has three main advantages. First, all pipeline steps can make use of Lean's
+powerful metaprogramming API for type inference, reduction, working with binders, etc. Second, the Lean kernel is able to
+verify that each of the pipeline steps did at least produce something type correct. This is
+useful for finding bugs while making changes to the implementation. However, type checking can make
+the system slow during actual use and can thus be disabled with an option. Lastly, Lean makes it very easy to build fast
+caches keyed by expressions. This does, for example, enable caching which subterms are proof terms
+in an efficient and easy manner.
 
-The implemented pipeline of Chako consists of five steps. First, it infers information
-necessary for the translation. Afterwards, it eliminates comfort features from Lean's logic before
+The pipeline of Chako consists of five steps. First, it infers information
+necessary for the translation. Afterward, it cleans up the proof state before
 invoking the dependent type elimination and monomorphization from @sect_reduct. The resulting problem
-is then handed off to Nunchaku with a simple syntactic translation.
+is then handed off to Nunchaku through a simple syntactic translation.
 
 Before starting the translation, Chako collects two important pieces of information. First, it
-derives all of the equations for the definitions involved in the current proof state. This is
-mostly done using Lean's `Meta.getEqnsFor?` facility. However, this API does not offer equations for
-all definitions. The most notable exceptions are "matchers" and "casesOn" which may be used to
+derives all the equations for the definitions involved in the current proof state. This is
+done with Lean's `Meta.getEqnsFor?` facility for the most part. However, this API does not offer equations for
+all definitions. The most notable exceptions are "matchers" and "casesOn", which are used to
 encode nested pattern matching in other equations built by `Meta.getEqnsFor?`. For these two groups
 of definitions, Chako has special support for synthesizing its own equations.
 
-Secondly, Chako attempts to infer for each inductive predicate whether it is well-founded. To do
+Secondly, Chako attempts to infer for each inductive predicate whether it is well-founded. For
 this, it follows the same approach as Nitpick: Translate the well-foundedness problem to a termination
 problem and use the system's built-in termination prover to establish well-foundedness. Because
 Lean's termination prover is equipped with some domain-specific knowledge, this process can even
-establish well-foundedness for inductives such as:
+establish well-foundedness for inductive predicates such as
 ```lean
 inductive Below (p : Nat → Prop) : Nat → Prop where
   | here (n : Nat) (h : p n) : Below p n
   | lower (n m : Nat) (h1 : n < m) (h2 : p n) : Below p m
 ```
 Each of the pipeline steps propagates which inductive predicates are well-founded until they are
-eventually marked as `[wf]` in the output to Nunchaku.
+eventually marked as `[wf]` in the Nunchaku problem.
 
-With all of the necessary information collected, the pipeline proceeds to clean up the current proof
+With all the necessary information collected, the pipeline proceeds to clean up the current proof
 state in preparation for the reduction. This amounts to liberal applications of reduction, applying
-function extensionality to avoid unsoundness where possible and eliminating type parameters. The
-latter is necessary because the monomorphizer will later attempt to generate specialized copies of
-constant declarations. However, these copies may of course not use local type variables of a
+function extensionality to avoid unsoundness where possible and eliminating type parameters of the
+theorem. The latter is necessary because the monomorphizer will later attempt to generate specialized copies of
+constant declarations. However, these copies may not use local type variables of a
 theorem. In order to avoid this, Chako replaces the local type variables with global axioms of the
 form `axiom a : Type`. Because these axioms are global constants, they can be used in any other
 constant declarations as well. Later, in the translation step to Nunchaku's logic, these axioms are
@@ -1617,23 +1617,23 @@ emitted as uninterpreted types of the form `val a : type`.
 After the cleanup step, Chako eliminates dependent types as described in @sect_trans_dtt. The
 practical implementation takes three notable deviations from the theoretical description. First, it
 supports arbitrary interleavings of type and term parameters to constants. Second, it treats some
-logical connectives such as Lean's `And`, `Iff`, `Eq`, and `Exists`, specially so they can later be directly
-translated to Nunchaku's logic. This is useful because many of Nunchaku's backend solvers have
-special support for these constants so encoding them directly instead of as inductive predicates
-improves their reasoning abilities. Last, it has special support for the previously mentioned
-matchers and casesOn constructs. This is necessary because they use a kind of dependently-typed polymorphism that is
+logical connectives, such as Lean's `And`, `Iff`, `Eq`, and `Exists`, specially so they can later be directly
+translated to Nunchaku's logic. This is not necessary but useful because many of Nunchaku's backend solvers have
+special support for these constants. Thus encoding them directly, instead of as inductive predicates,
+improves the reasoning abilities of the solvers. Lastly, the encoding has special support for the previously mentioned
+matchers and casesOn constructs. This is necessary because they use a kind of dependently typed polymorphism that is
 out of scope for the general translation. Fortunately, these constants are almost always used in a way
-where they can be monomorphized easily on the fly. Thus, this step ensures they do not cause trouble
-in the monomorphization.
+where they can be monomorphized easily on the fly. Hence, they are already eliminated in this
+step, so the monomorphization does not have to deal with them.
 
-The last step before producing the Nunchaku problem is the monomorphizer. Like the dependent
+The last step before producing the Nunchaku problem is the monomorphization. Like the dependent
 type elimination, it is slightly generalized from its theoretical description in @sect_trans_poly.
-The monomorphizer too supports arbitrary interleavings of term and type parameters and also any
-number of type parameters instead of just one. Handling more than one type parameter can be achieved
-in two ways. Either, each type argument can be tracked as an individual constraint variable, or the
+The monomorphization also supports arbitrary interleavings of term and type parameters and, in
+addition, any number of type parameters instead of just one. Handling more than one type parameter can be achieved
+in two ways. Either each type argument can be tracked as an individual constraint variable, or the
 type arguments of each constant are grouped and tracked as a vector-valued constraint variable.
-These vector-valued variables, have the advantage that they reduce code explosion at the cost of a
-more complex implementation. To observe the reduction in code explosion, consider the map function on
+These vector-valued variables have the advantage that they reduce problem size at the cost of a
+more complex implementation. To observe the reduction in problem size, consider the map function on
 lists:
 ```lean
 def List.map {α β : Type} (f : α → β) (xs : List α) : List β :=
@@ -1647,9 +1647,9 @@ variable individually requires us to generate 4 copies of `List.map`: `(Nat, Nat
 to generate the actually necessary copies `(Nat, String)` and `(String, Nat)`. For this reason, Chako
 implements the vector-valued approach.
 
-The final step of Chako's pipeline is the hand-off to Nunchaku. This step requires only minor
+The final step of Chako's pipeline is the handoff to Nunchaku. This step requires only minor
 syntactic adjustments, such as translating (dependent) function types to either regular function
-types or universal quantification etc. Finally, Chako invokes Nunchaku on the generated problem and
+types or universal quantification, etc. Finally, Chako invokes Nunchaku on the generated problem and
 uses its pipeline infrastructure to recover a counterexample if one is found.
 
 #pagebreak(weak: true)
@@ -1706,7 +1706,7 @@ Just like the CVC4 backend, the cvc5 backend uses a portfolio approach where sev
 the solver are run in parallel with different options. This is done because different configurations
 might allow the solver to explore more approaches, thus increasing the chances of success. The second
 modification concerns the options used for the portfolio. They were provided to me in
-private communications by Andrew Reynolds and mostly vary the strategy that cvc5 uses for reasoning
+private communications by Andrew Reynolds and vary the strategy that cvc5 uses for reasoning
 with quantifiers:
 + `--finite-model-find --fmf-mbqi=none --uf-ss-fair-monotone`
 + `--finite-model-find --decision=internal --uf-ss-fair-monotone`
@@ -1724,7 +1724,7 @@ pipeline of Nunchaku. In summary, I reported six bugs and fixed an additional fo
 Nunchaku itself.#footnote[https://github.com/nunchaku-inria/nunchaku/issues?q=is%3Aissue%20state%3Aopen%20author%3AhargoniX]
 While some of these bugs are only crashes within Nunchaku, at least three were silent soundness issues.
 Furthermore, I encountered multiple crashes in SMBC due to violations of its main invariant
-#footnote[https://github.com/c-cube/smbc/issues/7] and finally an unsoundness in cvc5 #footnote[https://github.com/cvc5/cvc5/issues/12208],
+#footnote[https://github.com/c-cube/smbc/issues/7] and an unsoundness in cvc5 #footnote[https://github.com/cvc5/cvc5/issues/12208],
 which is fixed by now. Even though these bugs can often be fixed quickly, they show that Nunchaku
 has not yet matured to the point where one can expect it to just work. Getting to this point will
 likely require pressure testing it more with a diverse set of problems.
