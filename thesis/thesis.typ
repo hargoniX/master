@@ -407,7 +407,7 @@ goal map_spec xs != xs.
 
 The last important pass for this work is the elimination of `pred` into `rec`. It is heavily
 inspired by the encoding of inductive predicates used by Nitpick @nitpickpred. The encoding is
-based on the fact that given an inductive predicate $p$ of the shape
+based on the fact that given an inductive predicate $p$ of the form
 $
   & pred p : alpha_1 -> ... -> alpha_m -> prop where \
   & forall overline(y)_1 . p " " overline(t)_11 and ... and p " " overline(t)_(1cal(l)_1) and Q_1 => p " " overline(u)_1 \
@@ -531,7 +531,7 @@ Because this is a mere syntactic restriction of Lean's core calculus, we can reu
 system with the typing judgment $Gamma tack e : e$.
 In the following description of the further restrictions on the fragment, I will use $x, y, z$ to
 denote variables; $alpha, beta, gamma$ to denote type expressions; $s, t, u$ to denote value
-expressions; and $e$ to denote expressions that might be both. This convention for expressions carries no semantic meaning on its
+expressions; and $e$ to denote expressions that might be both. This convention carries no semantic meaning on its
 own and is merely meant to aid in reading. However, the restrictions put on the expressions will enforce
 a match between insinuated and actual meaning. When convenient, I will denote the dependent function type as
 $forall x : alpha. t$ instead.
@@ -557,9 +557,9 @@ $
 $
 )
 Observe that the type of an inductive is split into two parts: $(overline(x) : overline(alpha))$ and
-$beta$. The $overline(x)$ part is called the _parameters_ of $c$ and remains fixed across all
+$beta$. The $overline(x)$ part are the _parameters_ of $c$ and remains fixed across all
 constructors. If $beta$ contains additional arguments, they are called the _indices_ of $c$ and may vary across
-constructors. Together, I refer to them as the _arguments_ of $c$.
+constructors. Together, they are called the _arguments_ of $c$.
 
 To impose the restriction of rank-1 polymorphism on this calculus, I use a notion of
 monotypes $tack alpha "mono"$ and polytypes $tack alpha "poly"$, similar to Jones et al. @higherrankedspj.
@@ -657,9 +657,9 @@ the term arguments need to be removed as well.
 
 This distinction between $Type u$ and $Prop$ generalizes to more than just inductive types.
 For example, the proposition $forall (n : "Nat") (p : "Nat" -> Prop). p " " n$ is perfectly
-understandable to Nunchaku, despite involving dependent types. However, the type
+understandable to Nunchaku, despite involving dependent types in Lean. However, the type
 $(n : "Nat") -> "Fin" n$ needs to be changed, because Nunchaku cannot handle the dependency of
-$"Fin"$ on $n$. This shows that the reduction must only remove non-propositional dependent types,
+$"Fin"$ on $n$. This shows that the reduction only needs to remove non-propositional dependent types;
 dependency in a propositional context is fine for Nunchaku.
 
 For handling proof terms, I make use of Lean's proof irrelevance. Because the concrete value of
@@ -704,45 +704,46 @@ The idea behind $"inv"_c$ is to have one introduction rule per constructor of $c
 term arguments of $c$, according to that constructor. Furthermore, all recursive occurrences of $c$
 get restricted by enforcing the invariant recursively for them as well.
 
-However, this invariant is incorrect in at least two ways. To demonstrate this, let us consider
-a counterexample, consisting of the types `Fin n` of natural numbers less than `n` and `Vec n` of lists
-with length `n`:
+However, I discovered that this invariant is incorrect in at least two ways. To demonstrate this, let us consider
+a Lean counterexample consisting of the types `Fin n` of natural numbers less than `n` and `VecFin n`
+of lists with length `n`:
 ```lean
 inductive Fin (n : Nat) : Type where
   | mk (val : Nat) (h : val < n)
 
-inductive Vec : Nat → Type where
-  | nil : Vec 0
-  | cons (n : Nat) (x : Fin 0) (xs : Vec n) : Vec (n + 1)
+inductive VecFin : Nat → Type where
+  | nil : VecFin 0
+  | cons (n : Nat) (x : Fin 0) (xs : VecFin n) : VecFin (n + 1)
 ```
-Observe that this particular version of `Vec` only carries values of `Fin 0`. Because there are no numbers less
-than zero, we can prove that for every `xs : Vec n`, we have `xs = nil`. The invariant generated for
-`Vec` would be
+Observe that `VecFin` only contains values of type `Fin 0`. Because there are no numbers less
+than zero, we can prove in Lean that for every `xs : VecFin n`, we have `xs = nil`. The invariant generated for
+`VecFin` would be
 ```lean
 inductive Fin' : Type where
   | mk (val : Nat)
 
-inductive Vec' : Type where
-  | nil : Vec'
-  | cons (n : Nat) (x : Fin 0) (xs : Vec') : Vec'
+inductive VecFin' : Type where
+  | nil : VecFin'
+  | cons (n : Nat) (x : Fin 0) (xs : VecFin') : VecFin'
 
-inductive VecInv : Nat → Vec' → Prop where
-  | nil : VecInv 0 Vec'.nil
-  | cons (n : Nat) (x : Fin') (xs : Vec') (h : VecInv n xs)
-    : VecInv (n + 1) (Vec'.cons n x xs)
+inductive VecFinInv : Nat → VecFin' → Prop where
+  | nil : VecFinInv 0 VecFin'.nil
+  | cons (n : Nat) (x : Fin') (xs : VecFin') (h : VecFinInv n xs)
+    : VecFinInv (n + 1) (VecFin'.cons n x xs)
 ```
-The invariant fails to restrict `x` to be a number less than zero, allowing for `Vec'`
+The invariant fails to restrict `x` to be a number less than zero, allowing for `VecFin'`
 of any length to fulfill the invariant. This issue leads us to the first insight: The encoding must also enforce
 invariants of all other constructor arguments.
 
-The second issue concerns polymorphic types; it can be demonstrated using a generalized version of `Vec`
-and the corresponding invariant:
+The second issue concerns polymorphic types; it can be demonstrated using a version of
+`VecFin` that is polymorphic over the contained type and the corresponding invariant:
 ```lean
 inductive Vec (α : Type) : Nat → Type where
   | nil : Vec α 0
   | cons (n : Nat) (x : α) (xs : Vec α n) : Vec α (n + 1)
 ```
 ```lean
+
 inductive Vec' (α : Type) : Type where
   | nil : Vec' α
   | cons (n : Nat) (x : Fin 0) (xs : Vec' α) : Vec' α
@@ -777,7 +778,7 @@ This new invariant correctly restricts the occurrences of `Fin 0` and thus prese
 #let denexpr(term, ..ctx) = $[| #ctx.pos().join(", ") tack term |]_"ex"$
 #let mkinv(ty, ..ctx) = $[| #ctx.pos().join(", ") tack ty |]_"inv"$
 
-To formalize this new approach, I will consider inductive types of the shape
+To formalize this new approach, I consider inductive types of the form
 $
 & inductive c " " (overline(a) : Type u) " " (overline(x) : overline(alpha)) : (overline(y) : overline(beta)) -> Type u where \
 & "ctor"_1 : (overline(z)_1 : overline(gamma)_1) -> c " " overline(a) " " overline(x) " " overline(t)_1 \
@@ -786,10 +787,10 @@ $
 $
 where $overline(a)$ are the type parameters, $overline(x)$ the term parameters, and $overline(y)$ the indices.
 The following reduction can be made to work with the different parameter kinds occurring out of order,
-though having them separate makes the presentation much simpler. For this reason I will also only
+though having them separate makes the presentation much simpler. For this reason I also only
 consider definitions whose type arguments occur grouped in the beginning of the signature.
 
-To perform the transformation, I will make use of several auxiliary functions that will be
+To perform the transformation, I make use of several auxiliary functions that will be
 defined through the course of this section:
 - $dentype(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and eliminates
   dependent types in $alpha$. In particular, whenever it encounters a binder for a proposition, it
@@ -812,7 +813,7 @@ defined through the course of this section:
 - $Gamma tack t "proof" <-> exists alpha, Gamma tack t : alpha and Gamma tack alpha : Prop$
 
 
-Furthermore, I define variants of these functions for mapping and folding over vectors:
+Furthermore, I use variants of these functions for mapping and folding over vectors:
 $
   dentype(overline(alpha), Gamma) &= cases(
     epsilon "if" overline(alpha) = epsilon,
@@ -827,15 +828,15 @@ $
   ) \
 $
 
-Using these auxiliary functions, the data-carrying type $"data"_c$ of an inductive $c$ can be
-derived by dropping all non-type parameters and the term indices:
+Using these auxiliary functions, one derives the data-carrying type $"data"_c$ of an inductive $c$
+by omitting all non-type parameters and the term indices:
 $
 & inductive "data"_c " " (overline(a) : Type u) : Type u where \
 & "ctor"'_1 : dentype((overline(z)_1 : overline(gamma)_1), (overline(a) : Type u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
 & dots.v \
 & "ctor"'_n : dentype((overline(z)_n : overline(gamma)_n), (overline(a) : Type u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
 $
-The reason that removing all non-type parameters works is that they cannot occur anymore in
+The reason that removing all non-type parameters works is that they cannot occur in
 the types of the erased constructor parameters $overline(z)_i$.
 
 For restricting the data-carrying type, I use the construction by Cruanes and Blanchette, modified as
@@ -911,16 +912,18 @@ Using all of this machinery, I now define the functions for removing dependent t
 monoterms and monotypes. The key question here is where to place the invariants for restricting
 dependent types. Because we are only working with well-typed expressions, many occurrences of
 dependent types already fulfill the required invariants by construction. For example, a term of type
-$"Vec" 42$ that is only built from constructors is also a list of length $42$ after naively
+$"Vec" 37$ that is only built from constructors is also a list of length $37$ after naively
 removing all dependent types. The crucial exception to this is universal quantification. Whenever we
 encounter universal quantification over a dependent type, we need to restrict the resulting
-quantification over the data-carrying type.
+quantification over the data-carrying type. This ensures that the quantifier cannot be instantiated
+with values that violate the invariants by Nunchaku's solvers later on.
 #pagebreak(weak: true)
 The issue with universal quantifiers can for example be observed in the proposition
 $ forall (n : "Nat")(x : "Vec" n). "length" x = n $
 If we naively substitute all types with their data-carrying types, we are left with
-a statement that claims any list can have any length, which is clearly wrong. Instead, $x$ needs to
-be restricted to lists of length $n$:
+a statement that claims any list can have any length, which is clearly wrong:
+$ forall (n : "data"_"Nat")(x : "data"_"Vec"). "length" x = n $
+Instead, $x$ needs to be restricted to lists of length $n$:
 $ forall (n : "data"_"Nat")(x : "data"_"Vec"). "inv"_"Vec" " " n " " x -> "length" x = n $
 
 Thus we end up with the following definitions for translating monotypes and monoterms:
@@ -1001,7 +1004,7 @@ Thus we end up with the following definitions for translating monotypes and mono
 This leaves only the translation of inductive propositions and definitions.
 Translating inductive propositions is quite similar to generating invariants for inductive types.
 However, instead of generating a separate invariant, the restrictions can be directly injected into the
-introduction rules of the proposition. Given an inductive proposition of the shape
+introduction rules of the proposition. Given an inductive proposition of the form
 $
 & inductive c " " (overline(a) : Type u) " " (overline(x) : overline(alpha)) : (overline(y) : overline(beta)) -> Prop where \
 & "ctor"_1 : (overline(z)_1 : overline(gamma)_1) -> c " " overline(a) " " overline(x) " " overline(t)_1 \
@@ -1032,7 +1035,7 @@ c' " " overline(a) " " p_overline(a) " " overline(x) " " overline(t')_n \
 $
 
 The last remaining construct are definitions. Because we only consider definitions with type
-arguments grouped in the beginning, they are of the shape
+arguments grouped in the beginning, they are of the form
 $
 & definition c : (overline(a) : Type u) -> beta where \
 & forall (overline(a) : Type u) (overline(x)_1 : overline(gamma)_1). c " " overline(a) " " overline(t)_1 = u_1 \
@@ -1059,7 +1062,7 @@ $
 Using all of this machinery, we can now take a monotype $alpha$ such that $epsilon tack alpha : Prop$ and
 erase all non-propositional dependent types from it with $denprop(alpha, epsilon)$. This
 leaves us with a logic where dependent types only occur as universal propositional quantification and
-inductive propositions, both of which are fine for Nunchaku.
+inductive propositions, both of which are supported by Nunchaku.
 
 This concludes the presentation of the naive encoding for dependent types. However, in many cases
 the invariants placed by this encoding are going to turn out unnecessary. For example, when translating
@@ -1117,7 +1120,7 @@ $
 Observe that this function is now underspecified; it is missing the $"nil"$ case, which was previously
 unnecessary. This is not generally an issue for Nunchaku. When a function is underspecified,
 Nunchaku lets the backend solvers fill in the missing parts arbitrarily. If the inputs to $"head"$ are
-properly restrained, this is fine because the underspecified cases are never exercised.
+properly restricted, this is unproblematic because the underspecified cases are never exercised.
 However, consider a case where we had defined a copy of $"head"$, called $"head"_2$.
 Although $"head" = "head"_2$ is provable in Lean using function extensionality, after the reduction
 both functions have an underspecified case. Because they are separate definitions, the backend
@@ -1133,7 +1136,8 @@ between functions directly, it could be hidden behind this predicate:
 $ "P" " " ((n : "Nat") -> "Vec" ("succ" n) -> "Nat") "head" "head"_2 $
 In these situations, it is not possible to apply function extensionality because the equality is
 between values of type $a$ and not directly between functions. A potential fix for this could be
-to eliminate polymorphism before eliminating dependent types.
+to eliminate polymorphism before eliminating dependent types. Note that this would come at the cost
+of additional complexity because both steps would have to handle dependent types.
 
 == Eliminating Polymorphism <sect_trans_poly>
 With dependent types out of the way, we are left with a logic with rank-1 polymorphism. In
@@ -1160,7 +1164,7 @@ The analysis tracks constraints of the form $tau subset.sq.eq x$,
 pronounced "monotype $tau$ flows into variable $x$". These constraints only need to
 handle monotypes that live in $Type u$, and dependent types have been eliminated. For
 this reason, both the types in the constraints and the type parameters to polymorphic constants can
-only take on four shapes:
+only take on four forms:
 $ tau ::= x | tau_1 -> tau_2 | c " " tau | c $
 
 For collecting the constraints, I define a function $"C"$ that operates on both types and
@@ -1287,7 +1291,7 @@ $
 $))
 This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b
 subset.eq.sq b, a subset.eq.sq a}$, which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
-To monomorphize the program, we would have to build copies of $"List"$ and $"length"$ instantiated with each of the
+To monomorphize this problem, we would have to build copies of $"List"$ and $"length"$ instantiated with each of the
 solutions for their type variables. However, a finite solution cannot always be found.
 
 The reason that we may fail to find a finite solution is polymorphic recursion.
@@ -1309,11 +1313,11 @@ $,
 )
 These type declarations give rise to the constraints ${"Two" a subset.eq.sq a, a subset.eq.sq b, a subset.eq.sq a, b subset.eq.sq b}$.
 Here the constraint $"Two" a subset.eq.sq a$ presents an issue because it requires instantiating $a$
-with an infinite set of types of the shape $"Two" a, "Two" ("Two" a), "Two" ("Two" ("Two" a))$, and so on.
+with an infinite set of types of the form $"Two" a, "Two" ("Two" a), "Two" ("Two" ("Two" a))$, and so on.
 This makes monomorphization for this problem infeasible because we cannot generate infinitely many
 specialized copies of $"Tree"$.
 
-In order to detect these situations, Lutze et al. convert the constraints into a directed graph and
+In order to detect these, rather rare, situations, Lutze et al. convert the constraints into a directed graph and
 detect harmful cyclic flows within the graph. For a given set of constraints $R$, this graph $G = (V, E)$ can
 be derived as follows:
 $
@@ -1429,14 +1433,14 @@ performs transformations on constant declarations.
 )]
 
 For a constant without type arguments, monomorphization amounts to running $"M"$ on its type and
-constructors/equations. For a polymorphic constant $c$ with type argument $x$, we need to generate a
+constructors or equations. For a polymorphic constant $c$ with type argument $x$, we need to generate a
 copy for every $rho in S(x)$. I use the notation $e[x |-> rho]$ for substituting a type variable $x$
 in an expression $e$ with a ground type $rho$.
 #table(
   columns: (230pt, 30pt, 240pt),
   stroke: none,
   align: horizon,
-  row-gutter: 12pt,
+  row-gutter: 20pt,
   inset: 0pt,
   align(left, block(
   $
@@ -1449,9 +1453,9 @@ in an expression $e$ with a ground type $rho$.
   align(left, block(
   $
   & inductive c_rho " " mon(((overline(x) : overline(alpha)) : beta)[a |-> rho]) where \
-  & "ctor"_1 : mon(((overline(y)_1 : overline(gamma)_(1))  -> c " " a " " overline(x) " " overline(t)_1)[a |-> rho]) \
+  & "ctor"_1_rho : mon(((overline(y)_1 : overline(gamma)_(1))  -> c " " a " " overline(x) " " overline(t)_1)[a |-> rho]) \
   & dots.v \
-  & "ctor"_n : mon(((overline(y)_n : overline(gamma)_(n)) -> c " " a " " overline(x) " " overline(t)_n)[a |-> rho])\
+  & "ctor"_n_rho : mon(((overline(y)_n : overline(gamma)_(n)) -> c " " a " " overline(x) " " overline(t)_n)[a |-> rho])\
   $)),
   align(left, block(
   $
@@ -1469,6 +1473,56 @@ in an expression $e$ with a ground type $rho$.
   & mon((forall (overline(x)_n : overline(beta)_n). c " " a " " overline(e)_n = u_n)[a |-> rho]) \
   $)),
 )
+
+With this monomorphization procedure, we can eliminate polymorphism from the previous
+$"length"$ example with the solution ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
+This solution requires us to build two copies of each base constant. Thus the original polymorphic constants
+#align(left, block(
+$
+& inductive "List" (a : Type) : Type where \
+& "nil" : "List" a \
+& "cons" : a -> "List" a -> "List" a \
+$))
+#align(left, block(
+$
+& definition "length" : (b : Type) -> "List" b -> "Nat" where \
+& forall (b : Type). "length" b "nil" = "zero" \
+& forall (b : Type) (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
+$))
+get converted into four non-polymorphic constants:
+#grid(
+  columns: (1fr, 1fr),
+align(left, block(
+$
+& inductive "List"_"Nat" : Type where \
+& "nil"_"Nat" : "List"_"Nat" \
+& "cons"_"Nat" : "Nat" -> "List"_"Nat" -> "List"_"Nat" \
+$)),
+align(left, block(
+$
+& inductive "List"_"String" : Type where \
+& "nil"_"String" : "List"_"String" \
+& "cons"_"String" : "String" -> "List"_"String" -> "List"_"String" \
+$))
+)
+
+
+#align(left, block(
+$
+& definition "length"_"Nat" : "List"_"Nat" -> "Nat" where \
+& "length"_"Nat" " " "nil"_"Nat" = "zero" \
+& forall (h : b) (t : "List"_"Nat"). "length"_"Nat" " " ("cons"_"Nat" " " h " " t) = "succ" ("length"_"Nat" " " b " " t)  \
+$))
+#align(left, block(
+$
+& definition "length"_"String" : "List"_"String" -> "Nat" where \
+& "length"_"String" " " "nil"_"String" = "zero" \
+& forall (h : b) (t : "List"_"String"). "length"_"String" " " ("cons"_"String" " " h " " t) = "succ" ("length"_"String" " " b " " t)  \
+$))
+
+And finally the original term $"add" ("length" "Nat" x_1) " " ("length" "String" x_2)$ gets
+converted into $"add" ("length"_"Nat" " " x_1) " " ("length"_"String" " " x_2)$.
+
 
 After applying this transformation, we are left with a logic with only propositional dependent types
 and no type parameters. This logic can be easily translated into Nunchaku's input format with a
@@ -1556,9 +1610,9 @@ function extensionality to avoid unsoundness where possible and eliminating type
 latter is necessary because the monomorphizer will later attempt to generate specialized copies of
 constant declarations. However, these copies may of course not use local type variables of a
 theorem. In order to avoid this, Chako replaces the local type variables with global axioms of the
-shape `axiom a : Type`. Because these axioms are global constants, they can be used in any other
+form `axiom a : Type`. Because these axioms are global constants, they can be used in any other
 constant declarations as well. Later, in the translation step to Nunchaku's logic, these axioms are
-emitted as uninterpreted types of the shape `val a : type`.
+emitted as uninterpreted types of the form `val a : type`.
 
 After the cleanup step, Chako eliminates dependent types as described in @sect_trans_dtt. The
 practical implementation takes three notable deviations from the theoretical description. First, it
@@ -1911,7 +1965,7 @@ the root node is not greater than its left child's.
   - take same theorems from stdlib and mutate them:
     - replacing certain constants
     - typoing free variables
-    - dropping assumption
+    - omitting assumption
     - crucial: any of these activities may produce ill typed theorems due to dependent types so we
       only allow those mutants in that pass a type check
   - present data
