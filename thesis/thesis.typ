@@ -1538,7 +1538,7 @@ implementation on the Lean side and the modifications I made to Nunchaku for imp
 on the generated problems.
 
 == The Lean Frontend (3P) <sect_impl_lean>
-On the Lean side, I implemented a new tactic called Chako. Chako can be called at any point during a
+On the Lean side, I implemented a new tactic called Chako #footnote[https://github.com/hargoniX/chako-lean]. Chako can be called at any point during a
 Lean proof and will attempt to translate the current proof state to Nunchaku's logic. If this
 succeeds, it invokes Nunchaku to search for a counterexample, up to a default timeout of ten seconds.
 When Nunchaku finds a counterexample, it is translated backwards along the pipeline steps of
@@ -1562,8 +1562,8 @@ inductive Pipeline : Type → Type → Type → Type → Type 1 where
     : Pipeline a c d f
 ```
 Each pipeline step has four type arguments, consisting of the input and output type for its encoding
-step, as well as the input and output type for its decoding step. Because these types are tracked
-explicitly, pipelines can be composed in a type-safe manner using the `compose` constructor. In addition
+step, as well as the input and output type for its decoding step. Because these types are tracked,
+pipelines can be composed in a type-safe manner using the `compose` constructor. In addition
 to these four type arguments, each `Transformation` carries an existential type `st`. Values of this
 type are part of the output of the encoding step. Later these values are fed back into the
 decoding step. Each pipeline step can use its `st` to store information generated during the
@@ -1571,8 +1571,8 @@ encoding that is useful for decoding a counterexample. For example, the monomorp
 stores which polymorphic constant each monomorphized constant is derived from.
 
 In the implemented encoding pipeline, none of the pipeline steps ever leaves Lean's own expression
-representation. This has three main advantages. First, all pipeline steps can make use of Lean's
-powerful metaprogramming API for type inference, reduction, working with binders, etc. Second, the Lean kernel is able to
+representation. This has several benefits. For one, all pipeline steps can make use of Lean's
+powerful metaprogramming API for type inference, reduction, working with binders, etc. Furthermore, the Lean kernel is able to
 verify that each of the pipeline steps did at least produce something type correct. This is
 useful for finding bugs while making changes to the implementation. However, type checking can make
 the system slow during actual use and can thus be disabled with an option. Lastly, Lean makes it very easy to build fast
@@ -1593,18 +1593,18 @@ of definitions, Chako has special support for synthesizing its own equations.
 
 Secondly, Chako attempts to infer for each inductive predicate whether it is well-founded. For
 this, it follows the same approach as Nitpick: Translate the well-foundedness problem to a termination
-problem and use the system's built-in termination prover to establish well-foundedness. Because
+problem and use the theorem prover's built-in termination prover to establish well-foundedness. Because
 Lean's termination prover is equipped with some domain-specific knowledge, this process can even
 establish well-foundedness for inductive predicates such as
 ```lean
 inductive Below (p : Nat → Prop) : Nat → Prop where
   | here (n : Nat) (h : p n) : Below p n
-  | lower (n m : Nat) (h1 : n < m) (h2 : p n) : Below p m
+  | lower (n m : Nat) (h1 : n < m) (h2 : Below p n) : Below p m
 ```
-Each of the pipeline steps propagates which inductive predicates are well-founded until they are
-eventually marked as `[wf]` in the Nunchaku problem.
+Each of the pipeline steps propagates which inductive predicates are well-founded to the next one.
+When outputting the Nunchaku problem, they are marked as `[wf]` accordingly.
 
-With all the necessary information collected, the pipeline proceeds to clean up the current proof
+With all the relevant information collected, the pipeline proceeds to clean up the current proof
 state in preparation for the reduction. This amounts to liberal applications of reduction, applying
 function extensionality to avoid unsoundness where possible and eliminating type parameters of the
 theorem. The latter is necessary because the monomorphizer will later attempt to generate specialized copies of
@@ -1618,10 +1618,10 @@ After the cleanup step, Chako eliminates dependent types as described in @sect_t
 practical implementation takes three notable deviations from the theoretical description. First, it
 supports arbitrary interleavings of type and term parameters to constants. Second, it treats some
 logical connectives, such as Lean's `And`, `Iff`, `Eq`, and `Exists`, specially so they can later be directly
-translated to Nunchaku's logic. This is not necessary but useful because many of Nunchaku's backend solvers have
+translated to Nunchaku's logic. This is not required for soundness, but useful because many of Nunchaku's backend solvers have
 special support for these constants. Thus encoding them directly, instead of as inductive predicates,
 improves the reasoning abilities of the solvers. Lastly, the encoding has special support for the previously mentioned
-matchers and casesOn constructs. This is necessary because they use a kind of dependently typed polymorphism that is
+matchers and casesOn constructs. This special casing is necessary because they use a kind of dependently typed polymorphism that is
 out of scope for the general translation. Fortunately, these constants are almost always used in a way
 where they can be monomorphized easily on the fly. Hence, they are already eliminated in this
 step, so the monomorphization does not have to deal with them.
@@ -1679,7 +1679,7 @@ backend solvers to reliably solve the problems.
 The primary mechanism of Nunchaku to avoid encoding higher-order functions is its specializer.
 However, specialization occurs several steps before predicates are eliminated, making the
 specializer oblivious to new opportunities further down the pipeline. To counteract this, I
-modified the specializer to be able to work with the later logics of the pipeline and placed a second
+modified the specializer to be able to work with the logics of later pipeline steps and placed a second
 specialization pass after predicate elimination. This results in Nunchaku producing the same
 function for `List_inv a_inv` as it would have for a manually specialized version:
 ```nun
@@ -1687,7 +1687,7 @@ pred [wf] List_inv' : List -> prop :=
   List_inv' Nil;
   forall x xs . (a_inv x && List_inv' xs) => List_inv' (Cons x xs).
 
-# Both List_inv and List_inv' yield
+# Both List_inv a_inv and List_inv' yield
 
 rec List_inv : List -> prop :=
   List_inv ys =
@@ -1952,22 +1952,55 @@ the root node is not greater than its left child's.
 #pagebreak(weak: true)
 
 = Evaluation (2-3P) <sect_eval>
-- This section aims at 2 things:
-  + Demonstrate that, despite the lack of proof and the known issues with the encoding Chako is at
-    least empirically sound most of the time
-  + Demonstrate its performance on a larger scale data set by evaluating it on the theories from
-    stdlib
+In this section I evaluate the behavior of Chako on a large set of problems derived from Lean's
+standard library. Through this, I aim to answer three research questions:
+- *RQ1*: Is the fragment handled by Chako powerful enough to encode frequently used constructs and
+  types from Lean?
+- *RQ2*: Is Chako able to reliably discover counterexamples for the fragment that it manages to
+  encode?
+- *RQ3*: How much does Chako's inherent unsoundness affect its false-positive rate in practice? In
+  particular, can users trust that Chako produces correct counterexamples at least most of the time?
+
+Because there is no standartized data set for counterexample finding in Lean available, this
+experimental evaluation is based on a custom data set derived from Lean's standard library.
+The data set contains TODONUMBER theorems from the standard library, picked from
+the following built-in theories: `Array`, `BitVec`, `Fin`, `Int`, `List`, `Nat`, `Nat.Gcd`,
+`Option`, and `TreeMap`.
+
+For answering *RQ1* and *RQ3*, I run Chako against the already proven theorem statements. Given that all
+of these statements are known to be true, any counterexample reported is guaranteed to be a
+false one. Furthermore, every theorem that Chako fails to encode is guaranteed to be a well-typed
+Lean expression and thus likely fails because it is outside of Chako's fragment.
+
+For answering *RQ2*, I follow the evaluation approach of Nitpick and previous Isabelle
+counterexample finding tools: Taking correct theorem statements and mutating them in hopes of
+creating false ones for running counterexample search on. Unlike in Isabelle, swapping out constants or removing assumptions can make a
+Lean theorem no longer type-check due to dependent types. Because of this, I adapted a slightly
+different approach to mutation. For each theorem I generate variants of the theorem with:
+- individual assumptions removed
+- connectives such as `∧` swapped with `↔` and predicates such as `<` swapped with `>`
+- variables replaced with other variables of the same type
+
+Each of these mutations can potentially make the statement no longer type check. Thus, every individual
+candidate mutant also gets type checked and only inserted into the benchmark suite if it is type correct.
+Overall this process was able to derive TODONUMBER mutants from the original data set.
+Note that mutation does not exclusively produce false statements due to symmetries or
+inconsistent assumptions in the original theorems. Despite this, the vast majority is going to be false
+and thus amenable to counterexample search.
+
+Both of these experiments were run on a 13th Gen Intel(R) Core(TM) i7-1360P CPU with 32 GB of RAM.
+I used Lean #link("https://github.com/leanprover/lean4/releases/tag/v4.24.1", [4.24.1]),
+Chako at commit #link("https://github.com/hargoniX/chako-lean/commit/9e2f0b37e107a7529a353db1952bbfe4de1e19e8", [9e2f0b3]), Nunchaku at commit
+#link("https://github.com/nunchaku-inria/nunchaku/commit/fc0a916451eae2c333ccbcd9d6716418bb2f4fb0", [fc0a916])
+with the backend solvers cvc5 at commit #link("https://github.com/cvc5/cvc5/commit/724682fa53aae3d870377065bbe3bed37ae9697c", [724682fa5]), Kodkod from Isabelle
+2025, and SMBC at commit #link("https://github.com/c-cube/smbc/commit/930278367b0a4a46eb0378455fe78dc99fc3133e", [9302783]). All problems were run with Chako's
+default wall time limit of ten seconds, one-by-one in sequence with access to all cores.
+
 - For soundness:
   - run Chako on theorems from stdlib with its default timeout and see if we get any SAT
   - show data
   - blame SAT on Kodkod encoding
 - For performance:
-  - take same theorems from stdlib and mutate them:
-    - replacing certain constants
-    - typoing free variables
-    - omitting assumption
-    - crucial: any of these activities may produce ill typed theorems due to dependent types so we
-      only allow those mutants in that pass a type check
   - present data
   - explain results:
     - UNSAT is because some theorems remain true even when mutated (give a few examples)
