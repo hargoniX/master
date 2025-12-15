@@ -1979,23 +1979,23 @@ the following built-in theories: `Array`, `BitVec`, `Fin`, `Int`, `List`, `Nat`,
 For answering *RQ1* and *RQ3*, I run Chako against the already proven theorem statements. Given that all
 of these statements are known to be true, any counterexample reported is guaranteed to be a
 false one. Furthermore, every theorem that Chako fails to encode is guaranteed to be a well-typed
-Lean expression and thus likely fails because it is outside of Chako's fragment.
+Lean expression and thus fails because it is outside of Chako's fragment.
 
 For answering *RQ2*, I follow the evaluation approach of Nitpick and previous Isabelle
 counterexample finding tools: Taking correct theorem statements and mutating them in hopes of
 creating false ones for running counterexample search on. Unlike in Isabelle, swapping out constants or removing assumptions can make a
 Lean theorem no longer type-check due to dependent types. Because of this, I adapted a slightly
-different approach to mutation. For each theorem I generate variants of the theorem with:
-- individual assumptions removed
-- connectives such as `∧` swapped with `↔` and predicates such as `<` swapped with `>`
-- variables replaced with other variables of the same type
-
-Each of these mutations can potentially make the statement no longer type check. Thus, every
+different approach to mutation. For each theorem I generate variants of the theorem with individual
+assumptions removed, logical and relation connectives swapped with others, and variables replaced
+with other variables of the same type. Each of these mutations can potentially make the statement no longer type check. Thus, every
 candidate mutant also gets type checked and only inserted into the benchmark suite if it is type correct.
 Overall this process was able to derive #perf_num_total mutants from the original data set.
+
 Note that this mutation procedure does not exclusively produce false statements due to symmetries or
-inconsistent assumptions in the original theorems. Despite this, the vast majority is going to be false
-and thus amenable to counterexample search.
+inconsistent assumptions in the original theorems.  For example, the theorem `Nat.mul_ne_zero` with
+the original statement $n != 0 -> m != 0 -> n dot m != 0$ can be mutated to a statement such as
+$n != 0 -> m != 0 -> n dot n != 0$ which is still true. Despite this, the vast majority of mutants
+is going to be false and thus amenable to counterexample search.
 
 Both of these experiments were run on a 13th Gen Intel(R) Core(TM) i7-1360P CPU with 32 GB of RAM.
 I used Lean #link("https://github.com/leanprover/lean4/releases/tag/v4.24.1", [4.24.1]),
@@ -2018,53 +2018,53 @@ theorems.
 
 As we can see, Chako only found counterexamples (*SAT*) for $0.4%$ of the theorems. After
 manual inspection, all of these counterexamples can be attributed to an unsoundness in the reduction
-to Kodkod (TODO: footnote with issue). Furthermore, Chako's backend solvers manage to prove (*UNSAT*)
-$28.1%$ of the statements and gave up on $44.8%$ (*Unknown*). They were particularly successful
+to Kodkod (TODO: footnote with issue). Furthermore, Chako managed to prove (*UNSAT*)
+$28.1%$ of the statements and gave up on $44.8%$ (*Unknown*). It was particularly successful
 at proving theorems in the `Option` theory, likely because most of its theorems can be proven by case distinction.
 Overall the low false positive rate and the fact that the solvers identify many theorems as true
 indicate that the theoretical unsoundness of Chako does not seem to manifest frequently in practice.
 
-
-Finally, with the exception of `Array` and
-`TreeMap`, Chako has success rates around $95%$ and higher in translating the theorems to Nunchaku's
-input language. The error rates on `Array` and `TreeMap` are due to their use of unsupported
-polymorphism variants. `Array` defines many higher order functions such as `Array.map` in terms of
-their monadic equivalent `Array.mapM`. These monadic functions abstract over the monads as a type
-constructor `m : Type → Type` and are thus unsupported. `TreeMap` on the other hand is based on
-another type `DTreeMap` in which the type of values may depend on the type of keys which is also
-unusupported (TODO example). This demonstrates that there is currently a tension between using
-Lean's powerful polymorphism to derive simpler structures automatically and using Chako for finding
-counterexamples in these simpler structures.
+Furthermore, with the exception of `Array` and `TreeMap`, Chako has success rates of above $95%$
+in translating the theorems to Nunchaku's input language. The high error rates on `Array` and `TreeMap`
+are due to their use of unsupported polymorphism variants. `Array` defines many higher order functions
+in terms of their monadic equivalent. For example, `Array.map` is defined as `Array.mapM`
+instantiated with the `Id` monad. Monadic functions such as `Array.mapM` abstract over the monad
+they run in as a type constructor `m : Type → Type`. Because Chako does not know how to handle this
+kind of polymorphism, it gives up on all theorems that use these functions. `TreeMap` on the other
+hand is based on type the type `DTreeMap` of dependent tree maps. In these kinds of maps the type of
+values is a generic type that may depend on the key type `(value : key → Type)`, this type of
+polymorphism is also unsupported. This demonstrates that there is currently a tension between using
+Lean's powerful polymorphism for building abstract definitions and using Chako for finding
+counterexamples in simpler structures derived from the abstract definitions.
 
 #figure(
   perf_table,
   caption: [Results of Chako on Mutated Statements]
 ) <perf_table>
 
-The results of the mutation experiment can be seen in @perf_table. The structure of the table
+The results of the mutation experiment can be seen in @perf_table. The structure of this table
 mimicks that of @sound_table. Just like in the first experiment, `Array` and `TreeMap` have
-exceptionally high error rates due to their use of unsupported polymorphism while the remaining problems can
-almost all be translated. Including these translation errors, Chako manages to find a
-counterexample for $60.2%$ of the mutants. When excluding the translation errors we can obtain the
+exceptionally high error rates due to their use of unsupported polymorphism while almost all other
+problems can be translated. Including these translation errors, Chako manages to find a
+counterexample for $60.2%$ of the mutants. When excluding the translation errors, we can obtain the
 success rate of Nunchaku on the problems it was able to run on which amounts of $81.4%$. This shows
-that if the mutant can be translated to Nunchaku, Chako is quite likely to identify a counterexample
+that if the mutant can be translated to Nunchaku, Chako is has good chances at finding a counterexample
 if one exists.
 
 As explained in the setup of the mutation experiment, not all of the generated mutants are
-necessarily false. For example the theorem `Nat.mul_ne_zero` with the original statement
-$n != 0 -> m != 0 -> n dot m != 0$ can be mutated to a statement such as $n != 0 -> m != 0 -> n dot n != 0$
-which is still true. This phenomenon is the reason for the $3.5%$ of mutants proven correct overall.
+necessarily false. This phenomenon is the reason for the $3.5%$ of mutants proven correct overall.
 Note that the $10.3%$ of mutants that the solvers gave up on likely contain both true and false
 statements because of this.
 
 Overall both of these experiments demonstrate that Chako is sound in practice, able to encode large
-parts of Lean's standard library and also able to find counterexamples for it quite reliably.
+parts of Lean's standard library, and also able to find counterexamples for it quite reliably.
 
 The main potential source of error in this evaluation is the generation of the wrong statements.
 It is unclear whether the mutation procedure does generate the kinds of statements that users are
-practically interested in finding counterexamples for. Thus the ability of Chako to discover
-counterexamples in practice might vary drastically from the numbers presented here. A good way to
-counteract this would be an authoritative data set for counterexample finders to test on.
+practically interested in finding counterexamples for. Furthermore, the ability of Chako to find counterexamples
+varies a lot depending on the kinds of problems. This can be observed in the comparatively low
+success rate of $57.1%$ on `Nat.Gcd`. For these reasons the ability of Chako to discover
+counterexamples in practice may deviate from the numbers presented here.
 
 #pagebreak(weak: true)
 = Conclusion (1P) <sect_conclusion>
@@ -2077,6 +2077,7 @@ Things for future work:
   - make problems with generic types easier to generate invariants for
 - Further optimizing the problems Nunchaku generates for solvers as well as finding and fixing more
   bugs in the pipeline
+- Standard evaluation data set
 
 #v(15pt)
 #[Total characters: #total-characters] <no-wc>
