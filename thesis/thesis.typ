@@ -562,13 +562,13 @@ $
 $
 )
 Observe that the type of an inductive is split into two parts: $(overline(x) : overline(alpha))$ and
-$beta$. The $overline(x)$ part are the _parameters_ of $c$ and remains fixed across all
+$beta$. The $overline(x)$ are the _parameters_ of $c$ and remain fixed across all
 constructors. If $beta$ contains additional arguments, they are called the _indices_ of $c$ and may vary across
 constructors. Together, they are called the _arguments_ of $c$.
 
 To impose the restriction of rank-1 polymorphism on this calculus, I use a notion of
 monotypes $tack alpha "mono"$ and polytypes $tack alpha "poly"$, similar to Jones et al. @higherrankedspj.
-Because types can depend on terms, defining them also requires a notion of monoterms $tack t "monot"$: 
+Because types can depend on terms, defining them also requires a notion of monoterms $tack t "monot"$:
 
 #align(center, [
   #box(proof-tree(inf-rule(
@@ -672,10 +672,10 @@ a proof term cannot change the semantics of a program, they can be erased. This 
 erasure_ is a well-established approach and is used by both the Lean code generator and the Rocq code
 extractor @coqerasure. The core idea is to introduce a new type, $"Erased"$,
 with a single value $qed : "Erased"$. When a proof term needs to be removed, it gets replaced
-it with $qed$, and if a binder binds a proof, the bound type gets replaced with $"Erased"$.
+with $qed$, and if a binder binds a proof, the bound type gets replaced with $"Erased"$.
 
 The elimination of dependent inductive types expands on prior work by Cruanes and Blanchette
-@nunchakudtt. Their approach takes a dependent inductive type and generates two new types, a non-dependent
+@nunchakudtt. Their approach takes a dependent inductive type and generates two new types: a non-dependent
 version for carrying the data and an inductive predicate to restrict the shape of the data
 as required by the dependent type. Then, the dependent type gets replaced with the non-dependent
 one, and the predicate is enforced upon it as needed.
@@ -725,7 +725,7 @@ than zero, we can prove in Lean that for every `xs : VecFin n`, we have `xs = ni
 `VecFin` would be
 ```lean
 inductive Fin' : Type where
-  | mk (val : Nat)
+  | mk (val : Nat) (h : Erased)
 
 inductive VecFin' : Type where
   | nil : VecFin'
@@ -748,10 +748,10 @@ inductive Vec (α : Type) : Nat → Type where
   | cons (n : Nat) (x : α) (xs : Vec α n) : Vec α (n + 1)
 ```
 ```lean
-
+-- Yields the invariant:
 inductive Vec' (α : Type) : Type where
   | nil : Vec' α
-  | cons (n : Nat) (x : Fin 0) (xs : Vec' α) : Vec' α
+  | cons (n : Nat) (x : α) (xs : Vec' α) : Vec' α
 
 inductive VecInv (α : Type) : Nat → Vec' α → Prop where
   | nil : VecInv α 0 Vec'.nil
@@ -766,7 +766,7 @@ must bring along its own invariant.
 Using both of these insights, we can construct more faithful invariants:
 ```lean
 inductive FinInv : Nat → Fin' → Prop where
-  | mk (n : Nat) (val : Nat) (h : val < n) : FinInv n (Fin'.mk val)
+  | mk (n : Nat) (val : Nat) (h : val < n) : FinInv n (Fin'.mk val ∎)
 
 inductive VecInv (α : Type) (p : α → Prop) : Nat → Vec' α → Prop where
   | nil : VecInv α p 0 Vec'.nil
