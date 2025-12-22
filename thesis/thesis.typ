@@ -40,7 +40,7 @@
   submission_date: target_date.display("[month repr:long] [day], [year]"),
   glossary: (
     (key: "DTT", short: "DTT", long: "dependent type theory"),
-    (key: "HOL", short: "HOL", long: "higher order logic"),
+    (key: "HOL", short: "HOL", long: "higher-order logic"),
     (key: "ITP", short: "ITP", long: "interactive theorem proving"),
   ),
   abstract: [
@@ -59,13 +59,11 @@
   ],
   acknowledgement: [
     I would like to thank Jasmin Blanchette for his supervision and, in particular, sharing details
-    about Nitpick that helped improve Nunchaku during this work. In addition, Simon Cruanes helped
-    me a lot with the long-forgotten implementation details of Nunchaku. Furthermore, I would like
-    to thank Abdalrhman Mohamed and Andrew Reynolds for implementing new features and fixing bugs
-    in cvc5 that were crucial for this work. Joachim Breitner and Arthur Adjedj helped me navigate
-    components of the Lean metaprogramming ecosystem I was previously unfamiliar with. Finally I
-    would like to thank Siddharth Bhat for helping me with parts of the algorithmics for the
-    monomorphization.
+    about Nitpick that helped improve Nunchaku during this work. Furthermore I would like to thank
+    Arthur Adjedj, Joachim Breitner, Siddharth Bhat, and Simon Cruanes for many fruitful discussion
+    on both the theory and implementation side of this work. Finally, I would like to thank
+    Abdalrhman Mohamed and Andrew Reynolds for implementing new features and fixing bugs in cvc5
+    that were crucial for this work.
   ]
 )
 #show: word-count
@@ -79,7 +77,7 @@ mistakes in software are identified before they lead to serious consequences is 
 An increasingly popular approach to tackling this challenge is the use of @ITP systems such as
 Isabelle @isabelle, Lean @lean4, and Rocq @rocq. However, developing correctness proofs
 in these systems at the same time as developing definitions and theorem statements can turn out to
-be quite frustrating. Often times definitions turn out to be subtly wrong or hypotheses in theorems
+be quite frustrating. Often times definitions turn out to be subtly wrong, or hypotheses in theorems
 need to be strengthened to make them provable. This problem can be partially mitigated through the
 use of counterexample-finding techniques. These techniques can help users identify such issues early,
 before significant time is wasted on unprovable goals.
@@ -88,15 +86,16 @@ For this reason, a variety of counterexample-finding techniques have been incorp
 systems over the years. For example, Isabelle provides support for random testing,
 bounded exhaustive testing, narrowing, and finite model finding, implemented in
 Nitpick @nitpick and Quickcheck @quickcheck. In contrast, systems grounded in @DTT have
-predominantly relied on random testing with tools such as Plausible @plausible and QuickChick @quickchick.
+predominantly relied on random testing with tools like Plausible @plausible and QuickChick @quickchick.
 These tools attempt to synthesize a procedure that evaluates the theorem
 statement for specific input values. This procedure is then executed repeatedly with random inputs
 to search for counterexamples. While this technique is quite effective in general, it does have a
 crucial limitation: If the inputs to the theorems are constrained by complicated invariants, it can
 be quite difficult to generate candidates for evaluation that satisfy these preconditions.
-For such theorems, finite model finders such as Nitpick shine. Nitpick reduces the original theorem to
-the boolean satisfiability (SAT) problem and invokes a SAT solver to search for counterexamples. The SAT solver can then search for
-inputs with invariants more directly, rather than relying on random generation to eventually find them.
+For such theorems, finite model finders, such as Nitpick, shine. Nitpick reduces the original theorem to
+the boolean satisfiability (SAT) problem and invokes a SAT solver to search for counterexamples.
+The SAT solver can then search for inputs with invariants more directly, rather than relying on
+random generation to eventually find them.
 
 In this thesis I describe the first finite model finding approach that is integrated with a dependently
 typed theorem prover, namely Lean. The core contribution is the reduction of a practically relevant
@@ -117,27 +116,27 @@ On the concrete end of the spectrum, the most widely deployed technique is the a
 random testing. Popularized by Haskell's QuickCheck @haskellquickcheck, random testing has been
 implemented in many @ITP systems, such as ACL2 @acl2cex, Agda's QuickCheck @agdaquickcheck,
 Isabelle's Quickcheck @quickcheck, Lean's Plausible @plausible, PVS @pvsquickcheck, and Rocq's QuickChick @quickchick.
-The main strength of this approach is performance: Computers can generate and
+The main strength of this approach is performance: computers can generate and
 evaluate many candidates within a short time span. As previously explained, the main weakness
 are complex constraints on the input space that make it hard to generate valid inputs.
 In order to counteract this, ACL2, Isabelle's Quickcheck, and later iterations of Rocq's QuickChick @quickchick-multirelations
 implement techniques to derive generators for inputs that are constrained by certain kinds of
 inductive relations.
 
-Another concrete execution technique is bounded exhaustive testing, implemented in
+Another concrete execution technique is bounded exhaustive testing, as implemented in
 Isabelle's Quickcheck and as a QuickChick extension @boundex-coq. Bounded exhaustive testing
 generates and tests all possible inputs to a conjecture up to a certain bound (e.g. term size).
 Unlike random testing, this ensures that all potentially relevant inputs within the search
 space are actually tested. The main limitation is that the search space can often only be fully
-explored up to a small bound within a small time frame. This causes bounded exhaustive testing to
+explored up to a small bound within a reasonable time frame. This causes bounded exhaustive testing to
 usually miss larger counterexamples.
 
 A fundamental limitation of systems that rely purely on concrete execution is the inability to
 refute propositions that are not executable. For example, to demonstrate that
 $forall n : NN. exists m : NN. n + m = m$ is false using concrete execution, the system would
 need to generate a value for $n$ and then try all possible values for $m$. This is impossible,
-given that $m$ ranges over infinitely many values. These issues can be addressed with
-symbolic reasoning.
+given that $m$ ranges over infinitely many values. Thus, to find these kinds of counterexamples,
+symbolic reasoning is necessary.
 
 Between the fully symbolic and fully concrete ends of the spectrum, Isabelle's Quickcheck also
 implements a narrowing-based approach. The idea of narrowing is to symbolically evaluate the
@@ -146,7 +145,7 @@ proposition with partially instantiated terms first and then refine them until a
 On the far symbolic end of the spectrum, we can find techniques that perform reductions to SAT or SMT
 solvers. These techniques can roughly be separated into finite model finding and counterexample-producing
 decision procedures. The latter often occurs as a by-product of integrating SAT and SMT solvers with @ITP
-systems, as done in Isabelle @isabellesmt, Lean's lean-smt @leansmt, and Rocq's SMTCoq @smtcoq.
+systems, as done in Isabelle's `smt` @isabellesmt, Lean's lean-smt @leansmt, and Rocq's SMTCoq @smtcoq.
 Finite model finding techniques enumerate all potential finite models of a conjecture in search of
 a false model. This procedure is usually powered by a reduction to SAT or SMT.
 Finite model finding has, so far, only been deployed to Isabelle in the form of Nitpick @nitpick and Refute @refute.
@@ -154,18 +153,18 @@ Finite model finding has, so far, only been deployed to Isabelle in the form of 
 #pagebreak(weak: true)
 
 = Background <sect_background>
-I begin by providing an overview of the fundamentals of the source and target languages involved in
+In this section I provide an overview of the fundamentals of the source and target languages involved in
 the reduction, focusing on the fragments relevant to this work. Additional details are discussed
 later in @sect_reduct and @sect_impl.
 
 == Lean 4 <sect_lean4>
 Lean 4 @lean4 is an open-source interactive theorem prover and functional programming language.
 Originally developed by Leonardo de Moura at Microsoft Research and Sebastian Ullrich at KIT, it is
-nowadays maintained by the Lean FRO with many open-source contributions by other volunteers. On the theorem
-proving side, Lean's logic is a dependent type theory based on the calculus of inductive constructions @coc @cic.
+nowadays maintained by the Lean FRO with many open-source contributions by other volunteers. On the theorem-proving side,
+Lean's logic is a dependent type theory based on the calculus of inductive constructions @coc @cic.
 This base calculus is extended with several axioms, most notably quotients, function extensionality, and
 choice. A thorough theoretical description of Lean's logic and its properties can be found
-in the work of Carneiro @mario-type-theory and Ullrich @sebastianphd.
+in the works of Carneiro @mario-type-theory and Ullrich @sebastianphd.
 
 The syntax of Lean's core expression language is given by the grammar
 $
@@ -174,16 +173,16 @@ $
 Just like the simply typed lambda calculus, Lean supports variables, constants, function application,
 and function abstraction. Unlike the simply typed lambda calculus, it does not have a function
 type $A -> B$ but instead the dependent function type $(x : A) -> B$. The crucial
-difference being that the _term_ variable $x$ may occur in the _type_ $B$, we say $B$ depends on
+difference being that the _term_ variable $x$ may occur in the _type_ $B$, we say $B$ may depend on
 $x$. For example, we can denote the type of functions that take a natural number $n$ and return a number
-less than $n$ as $(n : NN) -> "Fin" n$. If $B$ does not depend on $x$, we usually write just
-$A -> B$ instead.
+less than $n$ as $(n : NN) -> "Fin" n$. If $B$ does not depend on $x$, the normal function type
+notation $A ->B$ can be used instead.
 
 Lean supports several kinds of constants, with the most prominent ones being definitions, theorems,
 and inductive types. Definitions and theorems consist of a name, type or statement, and a body.
 The body may refer to the definition recursively in the surface-level syntax.
 While Lean internally desugars these recursive definitions into a non-recursive
-representation, we will mostly work with the equations that get automatically
+representation, we will work with the recursive equations that get automatically
 derived from the original syntax. Inductive types are the primary mechanism to introduce new types
 in Lean. They are defined by listing their constructors, which specify the ways in which values of
 the type can be built. A few examples of basic inductive types and definitions are given in @basic-inductives.
@@ -255,7 +254,7 @@ can construct an inhabitant of that type $h : P$, then $h$ is a proof of $P$. Th
 motivation for introducing $Prop$ as a separate concept is to allow for impredicativity and proof
 irrelevance. That is, we have $(forall x : A. P) : Prop$ and additionally for any two inhabitants
 $h_1, h_2 : P$ we get $h_1 = h_2$ by definition. Proof irrelevance is going to be of particular
-interest because it ensures that proof terms cannot be computationally relevant.
+interest later on because it ensures that proof terms cannot be computationally relevant.
 This allows us to always erase proofs without changing the semantics of a Lean program.
 
 On top of these base concepts, Lean provides a myriad of additional concepts that all get reduced to
@@ -267,14 +266,14 @@ Lean.
 
 On the type level, a very common extension is `structure`. A structure is an inductive type with only one
 constructor. For each structure, Lean automatically derives projection functions to obtain each of the
-parameters to that constructor. Using structures, the `Prod` definition from @basic-inductives could
+parameters of that constructor. Using structures, the `Prod` definition from @basic-inductives could
 have also been written as
 ```lean
 structure Prod (α : Type) (β : Type) where
   fst : α -- Prod.fst is defined implicitly
   snd : α
 ```
-On the expression level, one of the most pervasive extensions is implicit parameters.
+On the expression level, one of the most pervasive extensions are implicit parameters.
 If a parameter is written `{x : A}` instead of `(x : A)`, Lean will attempt
 to infer it from the other parameters. For example, the `List.length` function in @basic-inductives
 will attempt to infer its type parameter `α` by inspecting the type of `xs`. Parameters written as
@@ -284,7 +283,7 @@ will attempt to infer its type parameter `α` by inspecting the type of `xs`. Pa
 
 The type class system is frequently used to provide user-extensible notations.
 This is usually done by introducing a type class with a function field together with a notation that
-maps to this function. With this approach, we might implement a user-extensible addition operator as follows:
+maps to this function. With this approach, we can implement a user-extensible addition operator as follows:
 #grid(
   columns: (1fr, 1fr),
   align: center,
@@ -336,7 +335,7 @@ This model must ensure that the conjunction of all `axiom` predicates entails th
 
 For defining interpreted constants, Nunchaku has three main commands: `pred`, `data`, and `rec`.
 Both `data` and `rec` operate similarly to Haskell, with `data` allowing definitions of polymorphic
-algebraic types and `rec` allowing definitions of recursive functions by listing equations
+algebraic data types and `rec` allowing definitions of recursive functions by listing equations
 they must fulfill. Lastly, `pred` provides a way to define inductive predicates by specifying their
 introduction rules, similar to Isabelle or Lean. Using these basic commands, we can ask
 Nunchaku for a counter-model of "adding two odd numbers yields an odd one":
@@ -365,15 +364,12 @@ axiom odd m.
 goal ~odd (add n m).
 ```
 )
-For this problem Nunchaku quickly identifies a counter-model
+For this problem Nunchaku quickly identifies a solution
 ```nun
-SAT: {
-  val m := S Z.
-  val n := S Z.
-}
+SAT: { val m := S Z. val n := S Z. }
 ```
 
-To find these counter-models, Nunchaku applies long pipelines of reduction passes that eventually
+To find these solutions, Nunchaku applies long pipelines of reduction passes that
 end up in the input logics of its solvers. With the CVC4 pipeline alone containing 21 passes,
 explaining the pipelines in full would be far out of scope for this work. Instead, the following
 description focuses on the key steps relevant for the design of the reduction from Lean to
@@ -404,7 +400,7 @@ goal map (add Z) xs != xs.
 ```
 As we can see in the definition of `map`, the higher-order argument `f` always remains fixed in
 recursive calls. For this reason, Nunchaku decides to create a copy of `map`, specialized on the
-`add Z` function. This transformation turns the problem into an entirely first order one:
+`add Z` function. This transformation turns the problem into an entirely first-order one:
 ```nun
 rec map_spec : list -> list :=
   map_spec Nil = Nil;
@@ -424,7 +420,7 @@ $
   & forall overline(y)_n . p " " overline(t)_(n 1) and ... and p " " overline(t)_(n cal(l)_n) and Q_n => p " " overline(u)_n\
 $
 where the arguments $t_(i j)$ to $p$ and the side conditions $Q_i$ do not refer to $p$, $p$ is
-equivalent to the least fixpoint of the equation @paulson-indpred @harrison-indpred: #footnote[Due to the mentioned syntactic restrictions
+equivalent to the least fixpoint of the equation @paulson-indpred @harrison-indpred #footnote[Due to the mentioned syntactic restrictions
 this fixpoint always exists by the Knaster-Tarski theorem]
 $
   p " " overline(x) = (exists overline(y). or.big_(j = 1)^n overline(x) = overline(u)_j and p " " overline(t)_(j 1) and ... and p " " overline(t)_(j cal(l)_j) and Q_j)
@@ -451,16 +447,16 @@ well-founded if there exists a relation $R$ such that
 $
   and.big_(i=1)^n and.big_(j=1)^(cal(l)_i) (Q_i => (overline(t)_(i j), overline(u)_i) in R)
 $
-This is where Nunchaku takes a deviation from Nitpick. In Nitpick the system itself will attempt to
+This is where Nunchaku takes a deviation from Nitpick. In Nitpick, the system itself will attempt to
 find such a relation, while Nunchaku relies on the input problem to mark well-founded predicates.
 The motivation for this design choice is that Nunchaku’s frontend may possess more domain-specific information
 to establish well-foundedness than a generic mechanism within Nunchaku could reasonably infer.
 
 Lastly, for inductive predicates that occur positively and do not fulfill the well-foundedness
 criterion, Nunchaku converts them into well-founded ones. This is done by introducing an additional
-fuel parameter of type $"nat"$ that decreases in each recursive call to the definition of $p$.
-Along with this parameter, it introduces another uninterpreted constant $p_"decr" : "nat"$ that is
-added to each application of $p$, specifying the initial fuel. Because the fuel decreases in every call, the recursion is
+fuel parameter of type $"nat"$ that decreases in each recursive call to $p^+$.
+Along with this parameter, it introduces another uninterpreted constant $p^+_"decr" : "nat"$ that is
+added to each application of $p^+$, specifying the initial fuel. Because the fuel decreases in every call, the recursion is
 guaranteed to be well-founded and the predicate can be eliminated.
 
 As an example for this consider the $<=$ predicate on natural numbers:
@@ -1818,7 +1814,7 @@ not covered by the bisection example. Second, Nunchaku has a test called `slow_a
 case study on AA trees @nitpickpred, which heavily inspired this case study. This Nunchaku test case
 remained unsolved (within a reasonable time) by Nunchaku until the improvements described in @sect_impl_nunchaku.
 
-The foundation of this case study are the AA tree itself and some utility functions:
+The foundation of this case study is the AA tree itself and some utility functions:
 
 ```lean
 inductive AATree (α : Type u) where
@@ -2027,7 +2023,7 @@ indicate that the theoretical unsoundness of Chako does not seem to manifest fre
 
 Furthermore, with the exception of `Array` and `TreeMap`, Chako achieves translation success rates
 of above $95%$ when translating theorems to Nunchaku's input language. The high error rates on `Array` and `TreeMap`
-stem from their use of unsupported polymorphism variants. `Array` defines many higher order functions
+stem from their use of unsupported polymorphism variants. `Array` defines many higher-order functions
 in terms of their monadic counterpart. For example, `Array.map` is defined as `Array.mapM`,
 instantiated with the `Id` monad. Monadic functions such as `Array.mapM` abstract over the monad
 they run in as a type constructor `m : Type → Type`. Because Chako does not know how to handle this
