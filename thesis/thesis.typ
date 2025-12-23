@@ -792,16 +792,16 @@ $
 $
 where $overline(a)$ are the type parameters, $overline(x)$ the term parameters, and $overline(y)$ the indices.
 The following reduction can be made to work with the different parameter kinds occurring out of order,
-though having them separate makes the presentation much simpler. For this reason I also only
+though having them separate makes the presentation much simpler. For the same reason, I also only
 consider definitions whose type arguments occur grouped in the beginning of the signature.
 
 To perform the transformation, I make use of several auxiliary functions that will be
 defined through the course of this section:
 - $dentype(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and eliminates
-  dependent types in $alpha$. In particular, whenever it encounters a binder for a proposition, it
+  dependent types in $alpha$. In particular, whenever it encounters a binder for a proof, it
   replaces the bound type with $"Erased"$.
 - $mkinv(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$ and
-  generates a new expression of type $dentype(alpha, Gamma) -> Prop$. These expressions
+  produces a new expression of type $dentype(alpha, Gamma) -> Prop$. These expressions
   are like the invariants from above but generalized to arbitrary monotypes.
 - $denprop(alpha, Gamma)$ takes a context $Gamma$ and a monotype $alpha$, s.t. $Gamma
   tack alpha : Prop$. It eliminates non-propositional dependent types in $alpha$ by injecting the
@@ -833,8 +833,8 @@ $
   ) \
 $
 
-Using these auxiliary functions, one derives the data-carrying type $"data"_c$ of an inductive $c$
-by omitting all non-type parameters and the term indices:
+Using these auxiliary functions, the data-carrying type $"data"_c$ of an inductive $c$ can be
+derived by omitting all non-type parameters and the term indices:
 $
 & inductive "data"_c " " (overline(a) : Type u) : Type u where \
 & "ctor"'_1 : dentype((overline(z)_1 : overline(gamma)_1), (overline(a) : Type u), (overline(x) : overline(beta))) -> "data"_c " " overline(a) \
@@ -868,8 +868,8 @@ $
 ("inv"_(overline(z)_n) " " overline(z)_n) ->
 "inv"_c " " overline(a) " " p_overline(a) " " overline(x) " " overline(t')_n " " ("ctor"'_n " " overline(a) " " overline(z)_n) \
 $
-Next, I define $mkinv(alpha, Gamma)$ for generating an invariant for
-any monotype. Doing this is necessary because we might, for example, have to restrict the co-domain
+Next, I define invariant generator $mkinv(alpha, Gamma)$. Generating invariants for
+arbitrary monotypes is necessary because we might, for example, have to restrict the co-domain
 of a dependent function bound in a constructor.
 
 
@@ -892,7 +892,7 @@ of a dependent function bound in a constructor.
   $mkinv((overline(x) : overline(alpha)) -> beta, Gamma)$,
   $=
   lambda &(f : dentype((overline(x) : overline(alpha)) -> beta, Gamma)) .
-   forall(overline(x) : dentype(alpha, Gamma)) . \
+   forall(dentype((overline(x) : overline(alpha)), Gamma)) . \
      &mkinv(overline(alpha), Gamma) " " overline(x) -> mkinv(beta, Gamma,
      (overline(x) : overline(alpha))) " " (f " " overline(x))$,
   $$,
@@ -910,8 +910,8 @@ of a dependent function bound in a constructor.
 
 When the invariant generator encounters a proposition, the proposition itself becomes the invariant.
 Inductive types are handled via their associated inductive invariants. In the case of function types,
-the co-domain’s invariant must hold whenever the domain invariants do. Finally, $Prop$ imposes no invariant
-and type variables use their corresponding predicate variables.
+the co-domain’s invariant must hold whenever the domain invariants do. Finally, $Prop$ imposes no
+invariant, and type variables use their corresponding predicate variables.
 
 Using all of this machinery, I now define the functions for removing dependent types from
 monoterms and monotypes. The key question here is where to place the invariants for restricting
@@ -1007,7 +1007,7 @@ Thus we end up with the following definitions for translating monotypes and mono
 ]
 
 This leaves only the translation of inductive propositions and definitions.
-Translating inductive propositions is quite similar to generating invariants for inductive types.
+The translation of inductive propositions is quite similar to generating invariants for inductive types.
 However, instead of generating a separate invariant, the restrictions can be directly injected into the
 introduction rules of the proposition. Given an inductive proposition of the form
 $
@@ -1135,7 +1135,7 @@ that $"head"' != "head"'_2$.
 Even though simple cases like $"head" = "head"_2$ can be resolved by explicitly applying function
 extensionality and enforcing invariants on the function inputs, this is not generally possible.
 Equality between underspecified functions might be hidden behind polymorphism. For example, consider a
-predicate $"P" " " (a : "Type u") : a -> a -> Prop$ with a single introduction rule
+predicate $"P" " " (a : "Type" u) : a -> a -> Prop$ with a single introduction rule
 $"intro" : (l : a) -> (r : a) -> l = r -> "P" " " a " " l " " r$. Instead of exposing the equality
 between functions directly, it could be hidden behind this predicate:
 $ "P" " " ((n : "Nat") -> "Vec" ("succ" n) -> "Nat") "head" "head"_2 $
@@ -1157,7 +1157,7 @@ polymorphism. The analysis proceeds in three phases to monomorphize a program.
 First, it traverses the program and generates constraints based on what types
 polymorphic constants are directly applied to. Then, it determines whether these constraints admit a finite
 solution, and if they do, it determines a solution through fixpoint iteration. This solution is a map
-from type variables to the set of types with which they might be instantiated. Lastly, the analysis
+from type variables to the set of types with which they might be instantiated. Finally, the analysis
 traverses the program again and instantiates each polymorphic constant according to the solution.
 
 In the remainder of this section, I present an adaptation of their type flow analysis to the
@@ -1246,7 +1246,9 @@ achieved by disambiguating them through the name of the polymorphic constant the
 ]
 
 Note that $"C"$ still has to consider the dependent arrow and term arguments to types because that
-is how propositions are encoded. In addition to the constraints collected from terms and types
+is how propositions are encoded.
+
+In addition to the constraints collected from terms and types
 directly, constant declarations naturally impose some constraints too. Again, due to
 propositional dependent types, these constraints have to take the possibility of dependently typed
 inductives into account:
@@ -1296,8 +1298,8 @@ $
 $))
 This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b
 subset.eq.sq b, a subset.eq.sq a}$, which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
-To monomorphize this problem, we would have to build copies of $"List"$ and $"length"$ instantiated with each of the
-solutions for their type variables. However, a finite solution cannot always be found.
+Based on this solution, we could monomorphize the problem by building copies of $"List"$ and $"length"$
+instantiated with each of the solutions for their type variables. However, a finite solution cannot always be found.
 
 The reason that we may fail to find a finite solution is polymorphic recursion.
 Polymorphic recursion occurs whenever recursive occurrences of a constant have other type parameters
@@ -1345,7 +1347,7 @@ The constraint system $R$ is then solvable iff there exists no $e in E$ with $"m
 on a cycle in $G$.
 
 In their artifact @typeflowartifact, Lutze et al. use repeated BFS from the destination
-node to the origin node of each marked edge to search for such a cycle. However, this is wasteful as
+node to the origin node of each marked edge to search for such a cycle. However, this algorithm is wasteful as
 it might repeatedly explore parts of the graph unnecessarily. Instead, I use an algorithm based on strongly connected
 components. #footnote[The idea of using SCCs for this was given to me by Siddharth Bhat in private communications]
 It uses the fact that two vertices are on a cycle iff they are in the same SCC.
