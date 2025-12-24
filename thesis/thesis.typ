@@ -1586,8 +1586,8 @@ the system slow during actual use and can thus be disabled with an option. Lastl
 building fast caches keyed by expressions in a simple manner. This does, for example, enable caching which subterms are proof terms
 in an efficient and easy manner.
 
-The pipeline of Chako consists of five steps. First, it infers information
-necessary for the translation. Afterward, it cleans up the proof state before
+The pipeline of Chako consists of five steps. First, it infers the necessary information
+for the translation. Afterwards, it cleans up the proof state before
 invoking the dependent type elimination and monomorphization from @sect_reduct. The resulting problem
 is then handed off to Nunchaku through a simple syntactic translation.
 
@@ -1617,24 +1617,23 @@ function extensionality where possible in order to avoid the previously describe
 much as possible. Second, it applies reduction to applications of projections out of type classes.
 This is crucial for good performance with practical Lean expressions. For example, the simple
 expression `Nat.add a b`, when written out using the type class polymorphic notation `a + b`,
-elaborates to the following term:
+elaborates to the following expression:
+
 #pagebreak(weak: true)
 ```lean
-/-
-Lean support heterogenous addition in case the operands of `+` have different types.
--/
+-- Lean's `+` generalizes to heterogenous addition
 def instHAdd : {α : Type} → [Add α] → HAdd α α α :=
-  fun {α} [inst : Add α] => HAdd.mk α α α fun a b => Add.add α inst a b
+  fun {α} [inst : Add α] => HAdd.mk fun a b => Add.add α inst a b
 
-def instAddNat : Add Nat := Add.mk Nat Nat.add
+def instAddNat : Add Nat := Add.mk Nat.add
 
 HAdd.hAdd Nat Nat Nat (instHAdd Nat instAddNat) a b
 ```
 The complexity of expressions like this will not only put stress on Nunchaku's solvers, but also the
-reduction mechanism in general. However, by reducing applications of projections out of type
+reduction mechanism in general. Fortunately, by reducing applications of projections out of type
 classes, this term can be simplified back to the much simpler `Nat.add a b`.
 
-As a final step of preprocessing, Chako eliminates type parameters of the current proof state.
+As the third step of preprocessing, Chako eliminates type parameters of the current proof state.
 This is necessary because the monomorphizer will later attempt to generate specialized copies of
 constant declarations. However, these copies may not use local type variables of a
 theorem. In order to avoid this, Chako replaces the local type variables with global axioms of the
@@ -1643,8 +1642,8 @@ constant declarations as well. Later, in the translation step to Nunchaku's logi
 emitted as uninterpreted types of the form `val a : type`.
 
 After the cleanup step, Chako eliminates dependent types as described in @sect_trans_dtt. The
-practical implementation takes three notable deviations from the theoretical description. First, it
-supports arbitrary interleavings of type and term parameters to constants. Second, it treats some
+practical implementation takes three notable deviations from the theoretical description. It
+supports arbitrary interleavings of type and term parameters to constants. Furthermore, it treats some
 logical connectives, such as Lean's `And`, `Iff`, `Eq`, and `Exists`, specially so they can later be directly
 translated to Nunchaku's logic. This is not required for soundness but is useful because many of Nunchaku's backend solvers have
 special support for these constants. Thus, encoding them directly, instead of as inductive predicates,
@@ -1652,7 +1651,7 @@ improves the reasoning abilities of the solvers. Lastly, the encoding has specia
 matchers and casesOn constructs. This special casing is necessary because they use a kind of dependently typed polymorphism that is
 out of scope for the general translation. Fortunately, these constants are almost always used in a way
 where they can be monomorphized easily on the fly. Hence, they are already eliminated in this
-step, so the monomorphization does not have to deal with them later on.
+step, so the monomorphization does not have to deal with them.
 
 The last step before producing the Nunchaku problem is the monomorphization. Like the dependent
 type elimination, it is slightly generalized from its theoretical description in @sect_trans_poly.
@@ -1660,7 +1659,7 @@ The monomorphization also supports arbitrary interleavings of term and type para
 addition, any number of type parameters instead of just one. Handling more than one type parameter can be achieved
 in two ways. Either each type argument can be tracked as an individual constraint variable, or the
 type arguments of each constant are grouped and tracked as a vector-valued constraint variable.
-These vector-valued variables have the advantage that they reduce problem size at the cost of a
+These vector-valued constraint variables reduce the size of the monomorphized problem at the cost of a
 more complex implementation. To observe the reduction in problem size, consider the map function on
 lists:
 ```lean
@@ -1741,7 +1740,7 @@ with quantifiers:
 + `--finite-model-find --mbqi --fmf-mbqi=none`
 
 Overall, I found the new cvc5 backend to outperform CVC4 by a few percent of wall-clock time on the Nunchaku test suite. In
-addition, it solved 2 new problems on which CVC4 had given up previously. While this might not
+addition, it solved 2 new problems on which CVC4 had given up previously. While it might not
 sound like much, this small of a change can already have an impact for real-world use cases, as we
 are going to see in @sect_case_studies_aa.
 
@@ -1758,12 +1757,54 @@ likely require pressure testing it more with a diverse set of problems.
 #pagebreak(weak: true)
 
 = Case Studies <sect_case_studies>
-In this section, I present two case studies that demonstrate Chako’s capabilities when applied to
-realistic verification problems: bisection on arrays and AA trees.
+To demonstrate Chako's capabilities when applied to realistic verification problems, I present two
+case studies: verification of bisection on arrays and AA trees.
 
 == Bisection <sect_case_studies_bisect>
-The first example concerns the Lean standard library function `Array.binSearch`. It implements a
-generic bisection algorithm for sorted arrays.
+The first case study concerns the Lean standard library function `Array.binSearch` (@binary-search). It implements a
+generic bisection algorithm for sorted arrays. While the algorithmic side is quite simple, this
+program already suffices to demonstrate several
+features supported by Chako. For one, the implementation is generic over the type of elements of the
+array. Moreover, `binSearchAux` makes use of well-founded recursion, carries a proof argument `h`,
+and uses the dependent type `Fin` to avoid bounds checks. Thus, translating any theorems about
+`binSearch` requires both eliminating dependent types and monomorphization.
+
+Let us first consider a completeness theorem for `Array.binSearch`. The formulation uses the
+proof-carrying type class `TotalOrder` to constrain the `<` relation on `α`:
+```lean
+class TotalOrder (α : Type u) extends LE α, LT α where
+  le_refl : ∀ a : α, a ≤ a
+  le_trans : ∀ a b c : α, a ≤ b → b ≤ c → a ≤ c
+  le_antisymm : ∀ a b : α, a ≤ b → b ≤ a → a = b
+  le_total: ∀ x y : α, x ≤ y ∨ y ≤ x
+  lt_iff_le_not_ge : ∀ a b : α, a < b ↔ a ≤ b ∧ ¬b ≤ a
+
+theorem complete [TotalOrder α] [DecidableLT α] (xs : Array α)
+    (h : n ∈ xs) : xs.binSearch n (· < ·) = some n
+```
+For this theorem, Chako produces a counterexample in $0.2$ seconds. However, it synthesizes a quite unreadable `<`
+on `α`, which makes the counterexample difficult to interpret. Instead of checking this fully
+general theorem, we can inspect a version specialized on `Nat` to get a more readable output:
+```lean
+theorem complete (xs : Array Nat) (h : n ∈ xs) :
+    xs.binSearch n (· < ·) = some n
+```
+For this version, Chako finds the counterexample `xs := #[1, 0]` and `n := 0`, which allows us to pinpoint the flaw in
+this specification: `xs` is not restricted to sorted arrays. After adding this additional
+assumption, Chako times out as expected.
+
+In addition to completeness, we might also be interested in verifying soundness:
+```lean
+theorem sound (xs : Array Nat) :
+    xs.binSearch n (· < ·) = some y ↔ n = y
+```
+Note that this theorem should hold even for unsorted arrays; if the function returns a value,
+it should be the one we were looking for. However, the current statement does not capture this idea
+correctly. Chako manages to reveal this issue with the counterexample `n := 0`, `y := 0`, and `xs := #[]`.
+The issue is that the theorem is stated too strongly, using `↔` instead of `→`. Once again, after
+correcting the theorem statement, Chako times out.
+
+#figure(
 ```lean
 def binSearchAux {α : Type u} (lt : α → α → Bool) (as : Array α) (k : α)
     (lo : Fin (as.size + 1)) (hi : Fin as.size) (h : lo.1 ≤ hi.1) :
@@ -1792,40 +1833,17 @@ def binSearch {α : Type u} (as : Array α) (k : α) (lt : α → α → Bool) :
     binSearchAux lt as k ⟨lo, by grind⟩ ⟨hi, by grind⟩ (by grind)
   else
     none
-```
-While the algorithmic side is quite simple, this program already suffices to demonstrate quite a few of the
-features supported by Chako. First, the implementation is generic over the type of elements of the
-array, calling the monomorphizer into action. Second, `binSearchAux` makes use of well-founded
-recursion, carries a proof argument `h`, and works with the dependent type `Fin` to avoid
-bounds checks.
+```,
+  caption: [Binary Search Implementation from Lean's Standard Library],
+  placement: top,
+  gap: 1.5em,
+) <binary-search>
 
-Let us first consider a completeness theorem for `Array.binSearch`. The formulation uses the
-proof-carrying type class `TotalOrder` to constrain the $<$ relation on `α`:
-```lean
-theorem complete [TotalOrder α] [DecidableLT α] (xs : Array α)
-    (h : n ∈ xs) : xs.binSearch n (· < ·) = some n
-```
-Chako produces a counterexample in $0.2$ seconds, but it synthesizes a quite unreadable $<$
-on `α`, which makes the counterexample difficult to interpret. Instead of checking this fully
-general theorem, we can inspect a version specialized on `Nat` to get a more understandable output:
-```lean
-theorem complete (xs : Array Nat) (h : n ∈ xs) :
-    xs.binSearch n (· < ·) = some n
-```
-For this version, Chako finds the counterexample `xs := #[1, 0]` and `n := 0`, which allows us to pinpoint the flaw in
-this specification: `xs` is not restricted to sorted arrays. After adding this additional
-assumption, Chako times out as expected.
-
-In addition to completeness, we might also be interested in verifying soundness:
-```lean
-theorem sound (xs : Array Nat) :
-    xs.binSearch n (· < ·) = some y ↔ n = y
-```
-Note that this theorem should hold even for unsorted arrays; if the function returns a value,
-it should be the one we were looking for. However, the current statement does not capture this idea
-correctly. Chako reveals the issue with the counterexample `n := 0`, `y := 0`, and `xs := #[]`.
-The problem is that the theorem is stated too strongly, using `↔` instead of `→`. Once again, after
-correcting the theorem statement, Chako times out.
+This demonstrates that Chako is able to reason about Lean programs that use dependent types
+for additional safety and performance improvements, a very common pattern in Lean's standard library.
+Furthermore, the original formulation of `complete` shows that Chako is able to synthesize non-trivial
+abstract mathematical objects such as total orders. While they might not always be readable, finding
+an abstract counterexample alerts the user that something is wrong and should be investigated.
 
 == AA Trees <sect_case_studies_aa>
 The second case study is an AA tree @aatrees formalization. AA trees are self-balancing search
@@ -1855,7 +1873,6 @@ def right : AATree α → AATree α
   | node _ _ _ r => r
 ```
 )
-
 #grid(
   columns: (1fr, 1fr),
 ```lean
@@ -1869,13 +1886,13 @@ def isNil : AATree α → Bool
   | node .. => false
 ```
 )
-
 ```lean
 def data (t : AATree α) (h : t.isNil = false := by grind) : α :=
   match t with
   | nil => False.elim (by grind [isNil])
   | node x .. => x
-
+```
+```lean
 def mem (x : α) : AATree α → Prop
   | nil => False
   | node d _ l r => d = x ∨ mem x l ∨ mem x r
@@ -1906,7 +1923,8 @@ def skew : AATree α → AATree α
       node l.data lvl l.left (node x lvl l.right r)
     else
       node x lvl l r
-
+```
+```lean
 def split : AATree α → AATree α
   | nil => nil
   | node x lvl l r =>
@@ -1946,18 +1964,21 @@ def insert [LT α] [DecidableLT α] (t : AATree α) (x : α) : AATree α :=
   match t with
   | nil => .node x 1 nil nil
   | node y lvl l r =>
-    let l' := if x < y then l.insert x else l
-    let r' := if x > y then r.insert x else r
-    split <| skew <| node y lvl l' r'
+    if x < y then
+      split <| skew <| node y lvl (l.insert x) r
+    else if x > y then
+      split <| skew <| node y lvl l (r.insert x)
+    else
+      node y lvl l r
 ```
 In order to keep the tree balanced, the `insert` function must preserve the `WF` invariant:
 ```lean
 theorem WF_insert [TotalOrder α] [DecidableLT α] (t : AATree α) :
     WF t → WF (t.insert x)
 ```
-Indeed Chako finds no counterexample for this within its default timeout.
+Indeed Chako finds no counterexample for this within its default time limit.
 
-Let us now introduce a suble bug into the implementation and observe how Chako fairs at detecting it:
+Let us now introduce a subtle bug into the implementation of `skew` and observe how Chako fairs at detecting it:
 ```diff
  def skew : AATree α → AATree α
    | nil => nil
@@ -1965,23 +1986,22 @@ Let us now introduce a suble bug into the implementation and observe how Chako f
 -    if h : !l.isNil ∧ lvl = l.lvl then
 +    if h : !l.isNil ∧ lvl = r.lvl then
        node l.data lvl l.left (node x lvl l.right r)
-     else
-       node x lvl l r
 ```
-As in the bisection example, Chako is configured to search for `AATree Nat` counterexamples to keep the
-output readable. In this configuration, Chako quickly reports the counterexample `t := node 1 0 nil nil` and `x := 0`.
+This bug breaks the balancing mechanism and thus invalidates the `WF_insert` theorem.
+Chako is once again able to notice this for the abstract formulation of `WF_insert` but provides a
+rather unreadable counterexample due to the abstract `<` operation. When configured to search for
+`AATree Nat` counterexamples, Chako quickly reports the counterexample `t := node 1 0 nil nil` and `x := 0`.
 To confirm the bug, we can run the broken `insert` operation with the counterexample, which yields
 `node 1 1 (node 0 1 nil nil) nil`. This tree violates condition 3 of the invariant, since the level of
 the root node is not greater than its left child's.
 
-
 #pagebreak(weak: true)
 
 = Evaluation <sect_eval>
-In this section I evaluate the behavior of Chako on a large set of problems derived from Lean's
+In this section I evaluate the performance of Chako on a large set of problems derived from Lean's
 standard library. Through this, I aim to answer three research questions:
 - *RQ1*: Is the fragment handled by Chako powerful enough to encode frequently used constructs and
-  types from Lean?
+  types in practice?
 - *RQ2*: Is Chako able to reliably discover counterexamples for the fragment that it manages to
   encode?
 - *RQ3*: How much does Chako's inherent unsoundness affect its false-positive rate in practice? In
@@ -2052,7 +2072,7 @@ kind of polymorphism, it gives up on all theorems that use these functions. `Tre
 hand is based on type the type `DTreeMap` of dependent tree maps. In these kinds of maps the type of
 values is a generic type that may depend on the key type `(value : key → Type)`, this type of
 polymorphism is also unsupported. Thus Chako has to give up an any theorem containing a `TreeMap`.
-This demonstrates that there is currently a tension between using Lean's powerful
+This demonstrates that there is a tension between using Lean's powerful
 polymorphism for building abstract definitions and using Chako for finding counterexamples in
 simpler structures derived from such abstract definitions.
 
@@ -2066,13 +2086,13 @@ mimicks that of @sound_table. Just like in the first experiment, `Array` and `Tr
 exceptionally high error rates due to their use of unsupported polymorphism while almost all other
 problems can be translated. Including these translation errors, Chako manages to find a
 counterexample for $60.2%$ of the mutants. When excluding the translation errors, we can obtain the
-success rate of Nunchaku on the problems it was able to run on which amounts of $81.4%$. This shows
+success rate of Nunchaku on the problems it was able to run on which amounts to $81.4%$. This shows
 that if the mutant can be translated to Nunchaku, Chako is has good chances at finding a counterexample
 if one exists.
 
 As explained in the setup of the mutation experiment, not all of the generated mutants are
-necessarily false. This phenomenon is the reason for the $3.5%$ of mutants proven correct overall.
-Note that the $10.3%$ of mutants that the solvers gave up on likely contain both true and false
+necessarily false. This phenomenon is the likely reason for the $3.5%$ of mutants proven correct overall.
+Note that the $10.3%$ of mutants that the solvers gave up on probably contain both true and false
 statements because of this.
 
 Overall both of these experiments demonstrate that Chako is sound in practice, able to encode large
