@@ -1847,7 +1847,7 @@ an abstract counterexample alerts the user that something is wrong and should be
 
 == AA Trees <sect_case_studies_aa>
 The second case study is an AA tree @aatrees formalization. AA trees are self-balancing search
-trees designed with a focus on simple implementation. I selected this example for two reasons.
+trees, designed with a focus on simple implementation. I selected this example for two reasons.
 First, it involves a tree-shaped data structure and a non-trivial invariant, both things that are
 not covered by the bisection example. Second, Nunchaku has a test called `slow_aa_trees`, derived from the Nitpick
 case study on AA trees @nitpickpred, which heavily inspired this case study. This Nunchaku test case
@@ -2007,7 +2007,7 @@ standard library. Through this, I aim to answer three research questions:
 - *RQ3*: How much does Chako's inherent unsoundness affect its false-positive rate in practice? In
   particular, can users trust that Chako produces correct counterexamples at least most of the time?
 
-Because there is no standardized data set for counterexample finding in Lean available, this
+Because there is no standardized data set for counterexample-finding in Lean available, this
 experimental evaluation is based on a custom data set derived from Lean's standard library.
 The data set contains #sound_num_total theorems from the standard library, collected from
 the following built-in theories: `Array`, `BitVec`, `Fin`, `Int`, `List`, `Nat`, `Nat.Gcd`,
@@ -2020,10 +2020,10 @@ any errors encountered during encoding are most likely due to the target theorem
 fragment supported by Chako.
 
 To answer *RQ2*, I follow the evaluation approach of Nitpick and previous Isabelle
-counterexample finding tools: Taking correct theorem statements and mutating them in hopes of
+counterexample-finding tools: Taking correct theorem statements and mutating them in hopes of
 creating false ones. Unlike in Isabelle, swapping out constants or removing assumptions can make a
-Lean theorem no longer type-check due to dependent types. Because of this, I adapted a slightly
-different approach to mutation. For each theorem I generate variants of the theorem with individual
+Lean theorem no longer type-check due to dependent types. Because of this, I adopted a slightly
+different approach to mutation. For each theorem, I generate variants of the theorem with individual
 assumptions removed, logical and relational connectives swapped with others, and variables replaced
 with other variables of the same type. Since any of these mutations may render the statement ill-typed,
 each candidate mutant is type-checked and included in the benchmark suite only if it is well-typed.
@@ -2035,7 +2035,7 @@ the original statement $n != 0 -> m != 0 -> n dot m != 0$ can be mutated to a st
 $n != 0 -> m != 0 -> n dot n != 0$, which is still true. Despite this, the vast majority of mutants
 are going to be false and thus amenable to counterexample search.
 
-Both of these experiments were run on a 13th Gen Intel(R) Core(TM) i7-1360P CPU with 32 GB of RAM.
+Both of the experiments were run on a 13th Gen Intel(R) Core(TM) i7-1360P CPU with 32 GB of RAM.
 I used Lean #link("https://github.com/leanprover/lean4/releases/tag/v4.24.1", [4.24.1]),
 Chako at commit
 #link("https://github.com/hargoniX/chako-lean/commit/e2c8eeff6c359061caf185f911d233635270e99b", [e2c8eef]), Nunchaku at commit
@@ -2056,22 +2056,22 @@ of theorems.
 
 As we can see, Chako only found counterexamples (*SAT*) for $0.4%$ of the theorems. After
 manual inspection, all of these counterexamples can be attributed to an unsoundness in the reduction
-to Kodkod (TODO: footnote with issue). Furthermore, Chako managed to prove (*UNSAT*)
+to Kodkod#footnote[https://github.com/nunchaku-inria/nunchaku/issues/55]. Furthermore, Chako managed to prove (*UNSAT*)
 $28.1%$ of the statements and gave up on $44.8%$ (*Unknown*). It was particularly successful
 at proving theorems in the `Option` theory, likely because most of its theorems can be proven by case distinction.
-Overall the low false positive rate and the fact that the solvers identify many theorems as true
+Overall, the low false positive rate and the fact that the solvers identify many theorems as true
 indicate that the theoretical unsoundness of Chako does not seem to manifest frequently in practice.
 
-Furthermore, with the exception of `Array` and `TreeMap`, Chako achieves translation success rates
+Furthermore, except for `Array` and `TreeMap`, Chako achieves translation success rates
 of above $95%$ when translating theorems to Nunchaku's input language. The high error rates on `Array` and `TreeMap`
 stem from their use of unsupported polymorphism variants. `Array` defines many higher-order functions
 in terms of their monadic counterpart. For example, `Array.map` is defined as `Array.mapM`,
 instantiated with the `Id` monad. Monadic functions such as `Array.mapM` abstract over the monad
 they run in as a type constructor `m : Type → Type`. Because Chako does not know how to handle this
 kind of polymorphism, it gives up on all theorems that use these functions. `TreeMap` on the other
-hand is based on type the type `DTreeMap` of dependent tree maps. In these kinds of maps the type of
-values is a generic type that may depend on the key type `(value : key → Type)`, this type of
-polymorphism is also unsupported. Thus Chako has to give up an any theorem containing a `TreeMap`.
+hand, is based on the type `DTreeMap` of dependent tree maps. In these kinds of maps, the type of
+values is a generic type that may depend on the key type `(value : key → Type)`; this type of
+polymorphism is also unsupported. Thus Chako has to give up on any theorem containing a `TreeMap`.
 This demonstrates that there is a tension between using Lean's powerful
 polymorphism for building abstract definitions and using Chako for finding counterexamples in
 simpler structures derived from such abstract definitions.
@@ -2082,20 +2082,20 @@ simpler structures derived from such abstract definitions.
 ) <perf_table>
 
 The results of the mutation experiment can be seen in @perf_table. The structure of this table
-mimicks that of @sound_table. Just like in the first experiment, `Array` and `TreeMap` have
-exceptionally high error rates due to their use of unsupported polymorphism while almost all other
+mimics that of @sound_table. Just like in the first experiment, `Array` and `TreeMap` have
+exceptionally high error rates due to their use of unsupported polymorphism, while almost all other
 problems can be translated. Including these translation errors, Chako manages to find a
 counterexample for $60.2%$ of the mutants. When excluding the translation errors, we can obtain the
-success rate of Nunchaku on the problems it was able to run on which amounts to $81.4%$. This shows
-that if the mutant can be translated to Nunchaku, Chako is has good chances at finding a counterexample
+success rate of Nunchaku on the problems it was able to run on, which amounts to $81.4%$. This shows
+that if the mutant can be translated to Nunchaku, Chako has good chances at finding a counterexample
 if one exists.
 
-As explained in the setup of the mutation experiment, not all of the generated mutants are
-necessarily false. This phenomenon is the likely reason for the $3.5%$ of mutants proven correct overall.
-Note that the $10.3%$ of mutants that the solvers gave up on probably contain both true and false
-statements because of this.
+As explained in the setup of the mutation experiment, not all the generated mutants are
+necessarily false. This phenomenon is the likely reason for the $3.5%$ of mutants proven correct in
+total. Note that the $10.3%$ of mutants that the solvers gave up on probably contain both true and
+false statements because of this.
 
-Overall both of these experiments demonstrate that Chako is sound in practice, able to encode large
+Overall, both of these experiments demonstrate that Chako is sound in practice, able to encode large
 parts of Lean's standard library, and also able to find counterexamples for it quite reliably.
 
 The main potential source of error in this evaluation is the generation of the wrong statements.
