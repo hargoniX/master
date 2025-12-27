@@ -33,7 +33,7 @@
   ],
   author: "Henrik Böving",
   email: "H.Boeving@campus.lmu.de",
-  matriculation: [TODO],
+  matriculation: [12861541],
   thesis-type: [Master's Thesis],
   advisor: [Prof. Dr. Jasmin Blanchette],
   supervisor: [Prof. Dr. Jasmin Blanchette],
@@ -2041,8 +2041,10 @@ Chako at commit
 #link("https://github.com/hargoniX/chako-lean/commit/e2c8eeff6c359061caf185f911d233635270e99b", [e2c8eef]), Nunchaku at commit
 #link("https://github.com/nunchaku-inria/nunchaku/commit/fc0a916451eae2c333ccbcd9d6716418bb2f4fb0", [fc0a916])
 with the backend solvers cvc5 at commit #link("https://github.com/cvc5/cvc5/commit/724682fa53aae3d870377065bbe3bed37ae9697c", [724682fa5]), Kodkod from Isabelle
-2025, and SMBC at commit #link("https://github.com/c-cube/smbc/commit/930278367b0a4a46eb0378455fe78dc99fc3133e", [9302783]). All problems were run with Chako's
-default wall time limit of ten seconds, one-by-one in sequence with access to all cores.
+2025, and SMBC at commit #link("https://github.com/c-cube/smbc/commit/930278367b0a4a46eb0378455fe78dc99fc3133e", [9302783]).
+I did not use Paradox because getting the latest version to compile on a modern system turned out to
+require a non-trivial amount of effort. All problems were run with Chako's default wall time limit of ten
+seconds, one-by-one in sequence with access to all cores.
 
 #figure(
   sound_table,
@@ -2055,8 +2057,8 @@ problems in that theory. The final row presents the overall result percentages a
 of theorems.
 
 As we can see, Chako only found counterexamples (*SAT*) for $0.4%$ of the theorems. After
-manual inspection, all of these counterexamples can be attributed to an unsoundness in the reduction
-to Kodkod#footnote[https://github.com/nunchaku-inria/nunchaku/issues/55]. Furthermore, Chako managed to prove (*UNSAT*)
+manual inspection, all of these counterexamples can be attributed to an unsoundness in Nunchaku when
+reducing to Kodkod#footnote[https://github.com/nunchaku-inria/nunchaku/issues/55]. Furthermore, Chako managed to prove (*UNSAT*)
 $28.1%$ of the statements and gave up on $44.8%$ (*Unknown*). It was particularly successful
 at proving theorems in the `Option` theory, likely because most of its theorems can be proven by case distinction.
 Overall, the low false positive rate and the fact that the solvers identify many theorems as true
@@ -2109,7 +2111,7 @@ counterexamples in practice may deviate from the numbers presented here.
 = Conclusion and Future Work <sect_conclusion>
 In this thesis I presented Chako, the first finite model finding tool integrated with a dependently
 typed theorem prover. While the underlying translation is limited to only ML-style polymorphism for
-now, Chako is already able to translate and find counterexamples for a large part of the Lean
+now, Chako is already able to translate and find counterexamples for several theories in Lean's
 standard library.
 
 With the basic theoretical approach in place, a natural next step would be to extend the support for
@@ -2137,12 +2139,9 @@ approaches could improve both the soundness and success rate of Nunchaku.
 Finally, the current evaluation relies on an artificial data set that does not necessarily
 correspond to the kinds of problems that Chako will encounter in the real world. While proof
 automation tools in Lean can be evaluated using the standard library and other community-maintained
-libraries, there is currently no real-world benchmark of false statements for counterexample
+libraries, there is currently no real-world data set of false statements for counterexample
 finding in Lean. Ideally a data set analogous to SMT-LIB @smtlib, containing both true and false
 statements drawn from a wide range of domains, could be developed for Lean. Such a data set would
-enable both proof automation and counterexample-finding tools to be evaluated on the same realistic
+enable both proof automation and counterexample-finding tools to be evaluated on realistic
 problems. This would improve both our understanding of their strengths and limitations as well as
 the comparability between them.
-
-#v(15pt)
-#[Total characters: #total-characters] <no-wc>
