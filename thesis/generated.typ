@@ -1,4 +1,4 @@
-#let perf_num_total = $10,218$
+#let perf_num_total = $10 class("normal",comma) 218$
 #let perf_table = table(
   columns: (auto, auto, auto, auto, auto, auto),
   align: (left, right, right, right, right, right),
@@ -21,7 +21,7 @@
   [*Total*], [$60.2%$], [$3.5%$], [$10.3%$], [$26.0%$], $10218$,
 )
 
-#let sound_num_total = $5,174$
+#let sound_num_total = $5 class("normal",comma) 174$
 #let sound_table = table(
   columns: (auto, auto, auto, auto, auto, auto),
   align: (left, right, right, right, right, right),

@@ -6,7 +6,7 @@ scope: source.nun
 
 contexts:
   main:
-    - match: \b(if|then|else|forall|exists|pi|rec|pred|data|axiom|goal|val|prop|type)\b
+    - match: \b(if|then|else|forall|exists|pi|rec|pred|data|axiom|goal|val|prop|type|fun|and|or|not)\b
       scope: keyword.control.nun
     - match: '#'
       scope: punctuation.definition.comment.nun

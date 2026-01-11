@@ -21,7 +21,7 @@
 #let where = $bold("where")$
 #let pred = $bold("pred")$
 
-#let target_date = datetime(year: 2026, month: 1, day: 23)
+#let target_date = datetime(year: 2026, month: 1, day: 15)
 #show : official.with(
   title: [
     Finite Model Finding for Lean 4
@@ -56,7 +56,8 @@
     I would like to thank Jasmin Blanchette for his supervision and, in particular, sharing details
     about Nitpick that helped improve Nunchaku during this work. Furthermore I would like to thank
     Arthur Adjedj, Joachim Breitner, Siddharth Bhat, and Simon Cruanes for many fruitful discussion
-    on both the theory and implementation side of this work. Finally, I would like to thank
+    on both the theory and implementation side of this work. I would also like to thank Marc
+    Huisinga for reviewing a draft version of this thesis. Finally, I would like to thank
     Abdalrhman Mohamed and Andrew Reynolds for implementing new features and fixing bugs in cvc5
     that were crucial for this work.
   ]
@@ -188,12 +189,13 @@ and inductive types. Definitions and theorems consist of a name, type or stateme
 The body may refer to the definition recursively in the surface-level syntax.
 While Lean internally desugars these recursive definitions into a non-recursive
 representation, we will work with the recursive equations that get automatically
-derived from the original syntax. Inductive types are the primary mechanism to introduce new types
+derived from the original syntax. This is done is to avoid dealing with the encoding tricks that Lean uses
+for recursive functions. Inductive types are the primary mechanism to introduce new types
 in Lean. They are defined by listing their constructors, which specify the ways in which values of
 the type can be built. A few examples of basic inductive types and definitions are given in @basic-inductives.
 
 As alluded to in @basic-inductives by the `: Type` notation, these basic inductive types also have a type:
-$Type$. In fact, Lean has a whole hierarchy of types $Type : Type 1 : ... : Type u : Type (u + 1)$
+$Type$. In fact, Lean has an infinite hierarchy of types $Type : Type 1 : ... : Type u : Type (u + 1) : ...$
 to avoid type-theoretic versions of Russell's paradox. At the bottom of
 this hierarchy sits the type of mathematical propositions $Prop : Type$. The $Type u$ and $Prop$
 universe are subsumed by $"Sort" u$ through defining $Prop := "Sort" 0$ and $Type u := "Sort" (u + 1)$.
@@ -257,9 +259,10 @@ universe are subsumed by $"Sort" u$ through defining $Prop := "Sort" 0$ and $Typ
 Proofs in Lean are done using the Curry-Howard correspondence: given a type $P : Prop$, if we
 can construct an inhabitant of that type $h : P$, then $h$ is a proof of $P$. The main
 motivation for introducing $Prop$ as a separate concept is to allow for impredicativity and proof
-irrelevance. That is, we have $(forall x : A. P) : Prop$ and additionally for any two inhabitants
-$h_1, h_2 : P$ we get $h_1 = h_2$ by definition. Proof irrelevance is going to be of particular
-interest later on because it ensures that proof terms cannot be computationally relevant.
+irrelevance. Impredicativity means that we have $(forall x : A. P) : Prop$ and proof irrelevance
+means that for any two inhabitants $h_1, h_2 : P$ we get $h_1 = h_2$ by definition.
+The latter is going to be of particular interest later on because it ensures that proof terms
+cannot be computationally relevant, as they can be used interchangeably.
 This allows us to always erase proofs without changing the semantics of a Lean program.
 
 On top of these base concepts, Lean provides a myriad of additional concepts that all get reduced to
@@ -281,10 +284,13 @@ structure Prod (α : Type) (β : Type) where
 On the expression level, one of the most pervasive extensions are implicit parameters.
 If a parameter is written `{x : A}` instead of `(x : A)`, Lean will attempt
 to infer it from the other parameters. For example, the `List.length` function in @basic-inductives
-will attempt to infer its type parameter `α` by inspecting the type of `xs`. Parameters written as
+will attempt to infer its type parameter `α` by inspecting the type of `xs`.
+
+Parameters written as
 `[x : A]` are resolved using type class inference. A type class is an ordinary `inductive` or
-`structure` marked as a `class`. Type class inference performs a Prolog-like search
-@tabled-typeclass through definitions of class types that have been marked as an `instance`.
+`structure` but instead introduced through the `class` keyword. Type class inference performs a Prolog-like search
+@tabled-typeclass through definitions of class types that have been introduced with the `instance`
+keyword.
 
 The type class system is frequently used to provide user-extensible notations.
 This is usually done by introducing a type class with a function field together with a notation that
@@ -416,15 +422,15 @@ goal map_spec xs != xs.
 ```
 
 The last important pass for this thesis is the elimination of `pred` into `rec`. It is heavily
-inspired by the encoding of inductive predicates used by Nitpick @nitpickpred. The encoding is
-based on the fact that given an inductive predicate $p$ of the form
+inspired by the encoding of inductive predicates used by Nitpick @nitpickpred. The encoding operates
+on inductive predicates of the form
 $
   & pred p : alpha_1 -> ... -> alpha_m -> prop where \
   & forall overline(y)_1 . p " " overline(t)_11 and ... and p " " overline(t)_(1cal(l)_1) and Q_1 => p " " overline(u)_1 \
   & dots.v \
   & forall overline(y)_n . p " " overline(t)_(n 1) and ... and p " " overline(t)_(n cal(l)_n) and Q_n => p " " overline(u)_n\
 $
-where the arguments $t_(i j)$ to $p$ and the side conditions $Q_i$ do not refer to $p$, $p$ is
+If the arguments $t_(i j)$ to $p$ and the side conditions $Q_i$ do not refer to $p$, $p$ is
 equivalent to the least fixpoint of the equation @paulson-indpred @harrison-indpred #footnote[Due to the mentioned syntactic restrictions
 this fixpoint always exists by the Knaster-Tarski theorem]
 $
@@ -519,8 +525,8 @@ def NProd (n : Nat) : Type :=
   | 0 => Unit
   | n + 1 => Nat × NProd n
 ```
-Lastly, Lean makes it non-trivial to identify whether a function even has a type parameter by
-unifying `Prop` and `Type u` in `Sort u`.
+Lastly, Lean makes it non-trivial to identify whether a function even has a type parameter because
+`Sort u` can be instantiated with both propositional and type parameters.
 
 Instead of trying to encode all of these constructs into Nunchaku's logic, I will now define a
 smaller fragment of Lean. This fragment will serve as the input for the reduction to Nunchaku.
@@ -669,7 +675,7 @@ This distinction between $Type u$ and $Prop$ generalizes to more than just induc
 For example, the proposition $forall (n : "Nat") (p : "Nat" -> Prop). p " " n$ is perfectly
 understandable to Nunchaku, despite involving dependent types in Lean. However, the type
 $(n : "Nat") -> "Fin" n$ needs to be reduced to something else, because Nunchaku cannot handle the dependency of
-$"Fin"$ on $n$. This shows that the reduction only needs to remove non-propositional dependent types;
+$"Fin"$ on $n$. As illustrated by this example, the reduction only needs to remove non-propositional dependent types;
 dependency in a propositional context is fine for Nunchaku.
 
 For handling proof terms, I make use of Lean's proof irrelevance. Because the concrete value of
@@ -1046,7 +1052,7 @@ c' " " overline(a) " " p_overline(a) " " overline(x) " " overline(t')_n \
 $
 
 The last remaining construct are definitions. Because we only consider definitions with type
-parameters grouped in the beginning, they are of the form
+arguments grouped in the beginning, they are of the form
 $
 & definition c : (overline(a) : Type u) -> beta where \
 & forall (overline(a) : Type u) (overline(x)_1 : overline(gamma)_1). c " " overline(a) " " overline(t)_1 = u_1 \
@@ -1089,7 +1095,7 @@ $"inv"_"Nat"$ to enforce.
 
 Due to these trivial invariants, many expressions that do not involve dependent types can be
 reduced to expressions without any invariants at all. Doing so can be useful for finding
-counterexamples with Nunchaku, as its solvers might have to invest effort or even fail to see that
+counterexamples with Nunchaku, as its solvers might have to invest effort to or even fail to see that
 some invariants are trivial.
 
 To add this capability to the reduction, we need to detect types with trivial structure
@@ -1115,7 +1121,7 @@ Here, $c$ is a trivial inductive type if it takes no parameters or indices and a
 constructor arguments have trivial types. This criterion ensures that we only omit invariants when
 encountering an inductive type that is guaranteed to have a trivial invariant, or a function to such a type.
 
-While this final reduction is correct for many Lean problems in practice, as we are going to see
+While this final reduction is sound for many Lean problems in practice, as we are going to see
 in @sect_case_studies and @sect_eval, it is not generally sound. The reason for this is that the
 reduction sometimes fails to enforce invariants when they are required. For example, consider
 the $"head"$ function on $"Vec"$:
@@ -1168,7 +1174,7 @@ traverses the program again and instantiates each polymorphic constant according
 
 In the remainder of this section, I present an adaptation of their type flow analysis to the
 flavor of rank-1 polymorphism required for this work. To simplify the presentation, I only describe
-the analysis for problems where each constant has at most one type parameter ,just like Lutze et al.
+the analysis for problems where each constant has at most one type parameter, just like Lutze et al.
 In practice, the implementation supports any number of type variables.
 
 The analysis tracks constraints of the form $tau subset.sq.eq x$,
@@ -1190,7 +1196,7 @@ achieved by disambiguating them through the name of the polymorphic constant the
 #set par(leading: 0.4em)
 
 #table(
-  columns: (90pt, 120pt, 300pt),
+  columns: (90pt, 120pt, 200pt),
   stroke: none,
   inset: 0pt,
   row-gutter: 13pt,
@@ -1214,7 +1220,7 @@ achieved by disambiguating them through the name of the polymorphic constant the
 
   $coll(c " " alpha)$,
   $= {alpha subset.eq.sq x} union C(alpha)$,
-  $"if" c "is a constructor of an inductive with type argument" x$,
+  [if $c$ is a constructor of an inductive with type argument $x$],
 
   $coll(t " " e)$,
   $= coll(t) union coll(e)$,
@@ -1259,11 +1265,11 @@ directly, constant declarations naturally impose some constraints too. Again, du
 propositional dependent types, these constraints have to take the possibility of dependently typed
 inductives into account:
 #table(
-  columns: (160pt, 100pt, 230pt),
+  columns: (160pt, 75pt, 230pt),
   stroke: none,
   align: horizon,
   inset: 0pt,
-  row-gutter: 10pt,
+  row-gutter: 20pt,
   align(left, block(
   $
   & inductive c " " (overline(x) : overline(alpha)) : beta where \
@@ -1290,18 +1296,24 @@ inductives into account:
 
 Using this scheme, we can, for example, build the constraint system of a simple term
 $"add" ("length" "Nat" x_1) " " ("length" "String" x_2)$, where $"length"$ is defined as follows:
-#align(left, block(
+
+#table(
+  stroke: none,
+  align: horizon,
+  inset: 0pt,
+  row-gutter: 20pt,
+align(left, block(
 $
 & inductive "List" (a : Type) : Type where \
 & "nil" : "List" a \
 & "cons" : a -> "List" a -> "List" a \
-$))
-#align(left, block(
+$)),
+align(left, block(
 $
 & definition "length" : (b : Type) -> "List" b -> "Nat" where \
 & forall (b : Type). "length" b "nil" = "zero" \
 & forall (b : Type) (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
-$))
+$)))
 This results in the constraints ${"Nat" subset.eq.sq b, "String" subset.eq.sq b, b subset.eq.sq a, b
 subset.eq.sq b, a subset.eq.sq a}$, which have a solution with ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
 Based on this solution, we could monomorphize the problem by building copies of $"List"$ and $"length"$,
@@ -1309,8 +1321,8 @@ instantiated with each of the solutions for their type variables. However, a fin
 not always exist.
 
 The reason that we may fail to find a finite solution is polymorphic recursion.
-Polymorphic recursion occurs whenever recursive occurrences of a constant have type parameters
-other than the constant itself. For example, binary trees encoded using polymorphic pairs exhibit
+Polymorphic recursion occurs whenever recursive occurrences of a constant have other type parameters
+than the constant itself. For example, binary trees encoded using polymorphic pairs exhibit
 polymorphic recursion:
 #grid(
   columns: (1fr, 1fr),
@@ -1413,7 +1425,7 @@ performs transformations on constant declarations.
   columns: (90pt, 160pt, 90pt, 120pt),
   stroke: none,
   inset: 0pt,
-  row-gutter: 13pt,
+  row-gutter: 11pt,
   column-gutter: 0pt,
   [*Terms*], [], [*Types*], [],
   $mon(x)$,
@@ -1491,7 +1503,7 @@ in an expression $e$ with a ground type $rho$.
 
 With this monomorphization procedure, we can eliminate polymorphism from the previous
 $"length"$ example with the solution ${a |-> {"Nat", "String"}, b |-> {"Nat", "String"}}$.
-This solution requires us to build two copies of each base constant. Thus the original polymorphic constants
+This solution requires us to build two copies of each base constant. Thus the original polymorphic constants:
 #align(left, block(
 $
 & inductive "List" (a : Type) : Type where \
@@ -1505,21 +1517,18 @@ $
 & forall (b : Type) (h : b) (t : "List" b). "length" b " " ("cons" h " " t) = "succ" ("length" b " " t)  \
 $))
 get converted into four non-polymorphic constants:
-#grid(
-  columns: (1fr, 1fr),
-align(left, block(
+#align(left, block(
 $
 & inductive "List"_"Nat" : Type where \
 & "nil"_"Nat" : "List"_"Nat" \
 & "cons"_"Nat" : "Nat" -> "List"_"Nat" -> "List"_"Nat" \
-$)),
-align(left, block(
+$))
+#align(left, block(
 $
 & inductive "List"_"String" : Type where \
 & "nil"_"String" : "List"_"String" \
 & "cons"_"String" : "String" -> "List"_"String" -> "List"_"String" \
 $))
-)
 
 
 #align(left, block(
@@ -1798,7 +1807,20 @@ theorem complete [TotalOrder α] [DecidableLT α] (xs : Array α)
   (h : n ∈ xs) : xs.binSearch n (· < ·) = some n
 ```
 For this theorem, Chako produces a counterexample in $0.2$ seconds. However, it synthesizes a quite unreadable `<`
-on `α`, which makes the counterexample difficult to interpret. Instead of checking this fully
+on `α`, which makes the counterexample difficult to interpret:
+```nun
+α = [$α_0, $α_1, $α_2]
+fun (v_0 : α) .
+  if (v_0 = $α_0) then
+    (fun (v_1 : α) . (and (not (v_1 = $α_0)) (not (v_1 = $α_1))))
+  else if (v_0 = $α_1) then
+    (fun (v_1 : α) . (or (v_1 = $α_0) (not (v_1 = $α_1))))
+  else
+    (fun (v_1 : α) . false)
+```
+
+
+Instead of checking this fully
 general theorem, we can inspect a version specialized on `Nat` to get a more readable output:
 ```lean
 theorem complete (xs : Array Nat) (h : n ∈ xs) :
