@@ -1812,9 +1812,9 @@ on `α`, which makes the counterexample difficult to interpret:
 α = [$α_0, $α_1, $α_2]
 fun (v_0 : α) .
   if (v_0 = $α_0) then
-    (fun (v_1 : α) . (and (not (v_1 = $α_0)) (not (v_1 = $α_1))))
+    (fun (v_1 : α) . (v_1 != $α_0) && (v_1 != $α_1))
   else if (v_0 = $α_1) then
-    (fun (v_1 : α) . (or (v_1 = $α_0) (not (v_1 = $α_1))))
+    (fun (v_1 : α) . (v_1 = $α_0) || (v_1 != $α_1))
   else
     (fun (v_1 : α) . false)
 ```
