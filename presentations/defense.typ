@@ -150,19 +150,40 @@ Basic idea from Cruanes and Blanchette:
 inductive Vec (α : Type) : Nat → Type where
   | nil : Vec α 0
   | cons (x : α) (xs : Vec α n) : Vec α (n + 1)
-```
-
-```lean
 inductive Data (α : Type) : Type where
   | nil : Data α
   | cons (x : α) (xs : Data α) : Data α
-```
-
-```lean
 inductive Inv (α : Type) : Nat → Data α → Prop where
   | nil : Inv α 0 .nil
   | cons (x : α) (xs : Data α) (h : Inv α n xs) : Inv α (n + 1) (.cons x xs)
 ```
+
+
+#align(center, fletcher-diagram(
+  node-stroke: none,
+  node-fill: none,
+  spacing: 4em,
+  edge-stroke: 2pt,
+  {
+
+    node((0,0), [
+```lean
+∀ (x : Vec (Vec Nat n) n), P x
+```
+    ])
+
+
+
+    node((1,0), [
+```lean
+∀ (x : Data (Dat Nat)),
+    Inv (Data Nat) n → P x
+```
+    ])
+
+    edge((0, 0), (1, 0), "->", stroke: 2pt, bend: 0deg)
+  }))
+
 
 = Handling Polymorphic Inductives Correctly
 
@@ -173,7 +194,31 @@ inductive Inv (α : Type) (p : α → Prop) : Nat → Data α → Prop where
     : Inv α p (n + 1) (.cons x xs)
 ```
 
-`Vec (Vec Nat n) n` has the invariant `Inv (Data Nat) (Inv Nat NatInv n) n`
+
+#align(center, fletcher-diagram(
+  node-stroke: none,
+  node-fill: none,
+  spacing: 4em,
+  edge-stroke: 2pt,
+  {
+
+    node((0,0), [
+```lean
+∀ (x : Vec (Vec Nat n) n), P x
+```
+    ])
+
+
+
+    node((1,0), [
+```lean
+∀ (x : Data (Dat Nat)),
+    Inv (Data Nat) (Inv Nat NatInv n) n → P x
+```
+    ])
+
+    edge((0, 0), (1, 0), "->", stroke: 2pt, bend: 0deg)
+  }))
 
 = Eliminating Polymorphism
 Requirements:
@@ -198,6 +243,8 @@ Like data flow analysis but with types:
 + Collect constraints based on the program
 + Use a fixpoint solver to find a solution
 + Instantiate the solution to get a monomorphic program
+
+Extensible by changing step 1 and 3.
 
 = Example: Collecting
 
@@ -334,7 +381,8 @@ Data set:
 
 = Summary
 - Developed an encoding from a fragment of Lean to Nunchaku
-- Extensible for future work
-- Implemented as a tactic integrated with Lean
+- Practically relevant
 - Sound in practice
 - Good success rate in synthetic benchmarks
+- Extensible for future work
+- Implemented as a tactic integrated with Lean
